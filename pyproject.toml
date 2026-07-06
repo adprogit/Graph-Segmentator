@@ -1,0 +1,15 @@
+[project]
+name = "proj"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.0",
+    "networkx>=3.6.1",
+    "numpy>=2.5.0",
+    "opencv-python>=4.13.0.92",
+    "ruff>=0.15.20",
+    "scikit-learn>=1.9.0",
+]
