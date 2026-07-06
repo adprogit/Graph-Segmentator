@@ -76,8 +76,15 @@ le répertoire courant.
 ```bash
 cmake -S cpp -B cpp/build
 cmake --build cpp/build
+ctest --test-dir cpp/build          # tests, dont validation croisée vs Python
 ./cpp/build/pyplus chemin/vers/image.png
 ```
 
-Dépendance : OpenCV (`brew install opencv`). Sans OpenCV, seul le squelette
-compile.
+Portage : `model_io` et `classifier` faits ; `segmentation`, `features` et
+`export_table` restants (nécessitent OpenCV : `brew install opencv`).
+
+Le test `cross_python` vérifie que le kNN C++ reproduit les prédictions du
+prototype sur `data/knn_model.bin` ; le fixture se régénère avec :
+```bash
+uv run --project python cpp/tests/gen_cross_fixture.py
+```
