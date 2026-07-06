@@ -91,7 +91,6 @@ std::string KNNClassifier::vote(const std::vector<int>& neighbor_indices,
     return best->first;
 }
 
-// Predit le label d'un vecteur x (d,), ou nullopt si rejet.
 std::optional<std::string> KNNClassifier::predict_one(const float* x) const
 {
     if (model_.n == 0)

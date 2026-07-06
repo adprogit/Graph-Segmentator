@@ -91,10 +91,8 @@ def parse_table(source: str, *, is_path: bool = True) -> Automaton:
                 raise ValueError(f"Transition mal formee: {line!r}")
             aut.transitions.add((src.strip(), sym.strip(), dst.strip()))
         else:
-            # ligne hors section -> on ignore silencieusement, ou on leve
             raise ValueError(f"Ligne hors section: {line!r}")
 
-    # validations legeres (warning plutot que crash, a toi de voir)
     _validate(aut)
     return aut
 
