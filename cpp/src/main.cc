@@ -2,9 +2,17 @@
 // segmentation + reconnaissance d'une image d'automate.
 //
 //     pyplus <image> [--model data/knn_model.bin] [--table sortie.txt]
+//     pyplus --batch <corpus> --out <dossier> [--model data/knn_model.bin]
+//
+// En mode batch, chaque PNG du corpus (recursif) produit une table .txt
+// dans le dossier de sortie, en miroir de l'arborescence ; le modele n'est
+// charge qu'une fois.
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -71,6 +79,51 @@ void print_summary(const pyplus::AutomatonResult& result)
     }
 }
 
+int run_batch(const std::string& corpus_dir, const std::string& out_dir,
+              const pyplus::KNNClassifier* classifier)
+{
+    namespace fs = std::filesystem;
+
+    std::vector<fs::path> images;
+    for (const auto& entry : fs::recursive_directory_iterator(corpus_dir))
+        if (entry.path().extension() == ".png")
+            images.push_back(entry.path());
+    std::sort(images.begin(), images.end());
+    if (images.empty())
+    {
+        std::cerr << "aucun PNG dans " << corpus_dir << "\n";
+        return 1;
+    }
+
+    const auto start = std::chrono::steady_clock::now();
+    int n_errors = 0;
+    for (const fs::path& png : images)
+    {
+        fs::path out = fs::path(out_dir) / fs::relative(png, corpus_dir);
+        out.replace_extension(".txt");
+        fs::create_directories(out.parent_path());
+        try
+        {
+            pyplus::save_table(pyplus::segment_automaton(png.string(),
+                                                         classifier),
+                               out.string());
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[!] " << png.string() << " : " << e.what() << "\n";
+            ++n_errors;
+        }
+    }
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+            .count();
+
+    std::cout << images.size() - n_errors << "/" << images.size()
+              << " tables ecrites dans " << out_dir << " (" << seconds
+              << "s)\n";
+    return n_errors > 0 ? 1 : 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -78,6 +131,8 @@ int main(int argc, char** argv)
     std::string image_path;
     std::string model_path = "data/knn_model.bin";
     std::string table_path;
+    std::string batch_dir;
+    std::string out_dir;
     for (int i = 1; i < argc; ++i)
     {
         const std::string arg = argv[i];
@@ -85,14 +140,22 @@ int main(int argc, char** argv)
             model_path = argv[++i];
         else if (arg == "--table" && i + 1 < argc)
             table_path = argv[++i];
+        else if (arg == "--batch" && i + 1 < argc)
+            batch_dir = argv[++i];
+        else if (arg == "--out" && i + 1 < argc)
+            out_dir = argv[++i];
         else if (image_path.empty())
             image_path = arg;
     }
-    if (image_path.empty())
+    const bool batch = !batch_dir.empty();
+    if ((batch && out_dir.empty()) || (!batch && image_path.empty()))
     {
         std::cerr << "usage: " << argv[0]
                   << " <image> [--model data/knn_model.bin]"
-                     " [--table sortie.txt]\n";
+                     " [--table sortie.txt]\n"
+                  << "       " << argv[0]
+                  << " --batch <corpus> --out <dossier>"
+                     " [--model data/knn_model.bin]\n";
         return 1;
     }
 
@@ -112,6 +175,10 @@ int main(int argc, char** argv)
 
     try
     {
+        if (batch)
+            return run_batch(batch_dir, out_dir,
+                             has_classifier ? &classifier : nullptr);
+
         const pyplus::AutomatonResult result = pyplus::segment_automaton(
             image_path, has_classifier ? &classifier : nullptr);
         print_summary(result);
