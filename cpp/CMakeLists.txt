@@ -25,7 +25,9 @@ target_include_directories(pyplus_core PUBLIC include)
 target_compile_options(pyplus_core PRIVATE -Wall -Wextra)
 
 if(OpenCV_FOUND)
+    target_sources(pyplus_core PRIVATE src/features.cc)
     target_link_libraries(pyplus_core PUBLIC ${OpenCV_LIBS})
+    target_include_directories(pyplus_core PUBLIC ${OpenCV_INCLUDE_DIRS})
     target_compile_definitions(pyplus_core PUBLIC HAVE_OPENCV)
 endif()
 
@@ -51,3 +53,16 @@ add_test(NAME cross_python COMMAND test_cross_python
     ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/cross_predictions.txt
 )
+
+if(OpenCV_FOUND)
+    foreach(name test_features test_features_cross)
+        add_executable(${name} tests/${name}.cc)
+        target_compile_options(${name} PRIVATE -Wall -Wextra)
+        target_link_libraries(${name} PRIVATE pyplus_core)
+    endforeach()
+    add_test(NAME features COMMAND test_features)
+    # fixture : uv run --project python cpp/tests/gen_features_fixture.py
+    add_test(NAME features_cross COMMAND test_features_cross
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/features_expected.txt
+    )
+endif()

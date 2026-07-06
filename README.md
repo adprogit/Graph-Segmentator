@@ -80,11 +80,15 @@ ctest --test-dir cpp/build          # tests, dont validation croisée vs Python
 ./cpp/build/pyplus chemin/vers/image.png
 ```
 
-Portage : `model_io` et `classifier` faits ; `segmentation`, `features` et
-`export_table` restants (nécessitent OpenCV : `brew install opencv`).
+Portage : `model_io`, `classifier` et `features` faits ; `segmentation` et
+`export_table` restants. Dépendance : OpenCV (`brew install opencv`) ;
+sans OpenCV, seuls `model_io` et `classifier` compilent.
 
-Le test `cross_python` vérifie que le kNN C++ reproduit les prédictions du
-prototype sur `data/knn_model.bin` ; le fixture se régénère avec :
+Les tests `cross_python` et `features_cross` vérifient que le C++ reproduit
+les sorties du prototype (prédictions kNN sur `data/knn_model.bin`, crops
+normalisés et vecteurs HOG sur des glyphes réels). Les fixtures se
+régénèrent avec :
 ```bash
 uv run --project python cpp/tests/gen_cross_fixture.py
+uv run --project python cpp/tests/gen_features_fixture.py   # graphviz requis
 ```
