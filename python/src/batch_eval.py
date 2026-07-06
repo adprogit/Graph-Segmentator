@@ -20,11 +20,14 @@ import glob
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 from main import segment_automaton, load_classifier
 from export_table import result_to_table
 from automaton_parser import parse_table
 from automaton_compare import compare
+
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
 # =============================================================================
@@ -227,10 +230,10 @@ def save_scores_csv(stats, out_path):
 def main():
     parser = argparse.ArgumentParser(description="Evaluation batch du pipeline.")
     parser.add_argument("corpus", help="dossier du corpus (contient simple_dfa/...)")
-    parser.add_argument("--model", default="knn_model.bin",
-                        help="modele kNN (defaut: knn_model.bin)")
-    parser.add_argument("--failures", default="failures.json",
-                        help="fichier JSON des echecs (defaut: failures.json)")
+    parser.add_argument("--model", default=str(DATA_DIR / "knn_model.bin"),
+                        help="modele kNN (defaut: data/knn_model.bin)")
+    parser.add_argument("--failures", default=str(DATA_DIR / "failures.json"),
+                        help="fichier JSON des echecs (defaut: data/failures.json)")
     parser.add_argument("--csv", default=None,
                         help="exporte aussi les scores agreges en CSV")
     parser.add_argument("--threshold", type=float, default=0.9,

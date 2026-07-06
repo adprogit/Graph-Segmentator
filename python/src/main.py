@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -16,7 +17,9 @@ from segmentation import (
 )
 from model_io import load_model
 from classifier import KNNClassifier
-from features import compute_hog   
+from features import compute_hog
+
+DEFAULT_MODEL = str(Path(__file__).resolve().parents[2] / "data" / "knn_model.bin")
 
 
 def segment_automaton(image_path, classifier=None, debug=False):
@@ -128,8 +131,8 @@ def main():
         description="Segmentation + reconnaissance d'une image d'automate."
     )
     parser.add_argument("image", help="chemin vers l'image de l'automate")
-    parser.add_argument("--model", default="knn_model.bin",
-                        help="modele kNN entraine (defaut: knn_model.bin)")
+    parser.add_argument("--model", default=DEFAULT_MODEL,
+                        help="modele kNN entraine (defaut: data/knn_model.bin)")
     parser.add_argument("--debug", action="store_true",
                         help="conserve et affiche les images intermediaires")
     args = parser.parse_args()

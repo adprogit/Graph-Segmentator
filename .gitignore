@@ -9,4 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
+# C++ build
+cpp/build/
+compile_commands.json
+
+# Sorties generees (corpus, evaluations)
+data/base_automata/
+failures.json
+scores.csv
+
 *.swp
