@@ -78,6 +78,7 @@ cmake -S cpp -B cpp/build
 cmake --build cpp/build
 ctest --test-dir cpp/build          # tests, dont validation croisée vs Python
 ./cpp/build/pyplus chemin/vers/image.png [--table sortie.txt]
+./cpp/build/pyplus --batch data/base_automata --out predites/   # corpus entier
 ```
 
 Portage de l'inférence complet : `model_io`, `classifier`, `features`,

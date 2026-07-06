@@ -85,4 +85,9 @@ if(OpenCV_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/seg
     )
+    add_test(NAME cli_batch COMMAND pyplus
+        --batch ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/seg
+        --out ${CMAKE_CURRENT_BINARY_DIR}/batch_out
+        --model ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
+    )
 endif()
