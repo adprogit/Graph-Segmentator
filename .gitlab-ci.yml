@@ -1,0 +1,39 @@
+stages:
+  - image
+  - lint
+  - test
+
+# Reconstruit l'image CI (cmake + OpenCV) uniquement quand le Dockerfile
+# change, et la pousse dans la registry du projet via kaniko.
+build-ci-image:
+  stage: image
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}/docker"
+      --dockerfile "${CI_PROJECT_DIR}/docker/ci-cpp.Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}/ci-cpp:latest"
+  rules:
+    - changes:
+        - docker/ci-cpp.Dockerfile
+
+# Vérification du style Python (ruff)
+python-lint:
+  stage: lint
+  image: python:3.12-slim
+  script:
+    - pip install --quiet "ruff>=0.15"
+    - ruff check python
+
+# Compilation C++ + tests (dont les tests croisés avec les fixtures du dépôt)
+cpp-tests:
+  stage: test
+  image: ${CI_REGISTRY_IMAGE}/ci-cpp:latest
+  script:
+    - cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+    - cmake --build cpp/build -j"$(nproc)"
+    - ctest --test-dir cpp/build --output-on-failure

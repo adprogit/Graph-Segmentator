@@ -70,9 +70,16 @@ std::vector<float> compute_hog(const cv::Mat& img, int cell_size, int n_bins)
                     const float dy = gy_row[x];
                     const float magnitude = std::sqrt(dx * dx + dy * dy);
                     // equivalent de numpy `arctan2(gy, gx) % pi` : [0, pi)
-                    float orientation = std::fmod(std::atan2(dy, dx), pi);
-                    if (orientation < 0.0f)
-                        orientation += pi;
+                    // gradient horizontal -> angle 0 exact : atan2(0, x<0)
+                    // vaut pi-1ulp sur macOS mais pi pile sur Linux, ce qui
+                    // fait basculer le bin (8 vs 0)
+                    float orientation = 0.0f;
+                    if (dy != 0.0f)
+                    {
+                        orientation = std::fmod(std::atan2(dy, dx), pi);
+                        if (orientation < 0.0f)
+                            orientation += pi;
+                    }
                     int b = static_cast<int>(orientation / bin_width);
                     if (b >= n_bins)
                         b = n_bins - 1;

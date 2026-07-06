@@ -44,6 +44,9 @@ def compute_hog(img, cell_size=8, n_bins=9):
     gy = cv2.Sobel(img.astype(np.float32), cv2.CV_32F, 0, 1, ksize=3)
     magnitude = np.sqrt(gx ** 2 + gy ** 2)
     orientation = np.arctan2(gy, gx) % np.pi
+    # gradient horizontal -> angle 0 exact : atan2(0, x<0) vaut pi-1ulp sur
+    # macOS mais pi pile sur Linux, ce qui fait basculer le bin (8 vs 0)
+    orientation[gy == 0] = 0.0
 
     h, w = img.shape
     bin_width = np.pi / n_bins

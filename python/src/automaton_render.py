@@ -1,6 +1,5 @@
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from automaton_parser import Automaton, parse_table
 
