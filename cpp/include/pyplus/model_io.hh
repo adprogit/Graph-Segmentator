@@ -13,31 +13,27 @@
 #include <string>
 #include <vector>
 
-namespace pyplus
-{
+namespace pyplus {
 
-struct Model
-{
-    int n = 0;                         // nombre d'exemples
-    int d = 0;                         // dimension des features
-    std::vector<float> x;              // (n * d), ligne par ligne
-    std::vector<int> y;                // (n,) index de classe
-    std::vector<std::string> classes;  // labels utf-8, tries
+struct Model {
+  int n = 0;                        // nombre d'exemples
+  int d = 0;                        // dimension des features
+  std::vector<float> x;             // (n * d), ligne par ligne
+  std::vector<int> y;               // (n,) index de classe
+  std::vector<std::string> classes; // labels utf-8, tries
 
-    const float* row(int i) const
-    {
-        return x.data() + static_cast<std::size_t>(i) * d;
-    }
+  const float *row(int i) const {
+    return x.data() + static_cast<std::size_t>(i) * d;
+  }
 
-    const std::string& label(int i) const
-    {
-        return classes[static_cast<std::size_t>(y[static_cast<std::size_t>(i)])];
-    }
+  const std::string &label(int i) const {
+    return classes[static_cast<std::size_t>(y[static_cast<std::size_t>(i)])];
+  }
 };
 
 // Lance std::runtime_error si le fichier est absent ou tronque.
-Model load_model(const std::string& path);
+Model load_model(const std::string &path);
 
-void save_model(const std::string& path, const Model& model);
+void save_model(const std::string &path, const Model &model);
 
 } // namespace pyplus

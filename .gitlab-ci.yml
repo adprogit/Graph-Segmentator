@@ -29,11 +29,19 @@ python-lint:
     - pip install --quiet "ruff>=0.15"
     - ruff check python
 
-# Compilation C++ + tests (dont les tests croisés avec les fixtures du dépôt)
+# Vérification du formatage C++ (clang-format, style dans .clang-format)
+cpp-format:
+  stage: lint
+  image: ${CI_REGISTRY_IMAGE}/ci-cpp:latest
+  script:
+    - clang-format --dry-run --Werror cpp/src/*.cc cpp/include/pyplus/*.hh cpp/tests/*.cc
+
+# Compilation C++ (warnings = erreurs) + tests, dont les tests croisés
+# avec les fixtures du dépôt
 cpp-tests:
   stage: test
   image: ${CI_REGISTRY_IMAGE}/ci-cpp:latest
   script:
-    - cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+    - cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Werror
     - cmake --build cpp/build -j"$(nproc)"
     - ctest --test-dir cpp/build --output-on-failure

@@ -17,26 +17,24 @@
 
 #include "pyplus/pipeline.hh"
 
-namespace pyplus
-{
+namespace pyplus {
 
-struct Automaton
-{
-    std::set<std::string> states;
-    std::optional<std::string> initial;
-    std::set<std::string> accepting;
-    std::set<std::string> alphabet;
-    std::set<std::tuple<std::string, std::string, std::string>> transitions;
+struct Automaton {
+  std::set<std::string> states;
+  std::optional<std::string> initial;
+  std::set<std::string> accepting;
+  std::set<std::string> alphabet;
+  std::set<std::tuple<std::string, std::string, std::string>> transitions;
 };
 
 // Serialise un Automaton au format table sectionne (sections triees).
-std::string to_table(const Automaton& aut);
+std::string to_table(const Automaton &aut);
 
 // Convertit le resultat de segment_automaton en une chaine au format table.
 // Les etiquettes sans symbole reconnu sont ignorees (on n'invente pas).
-std::string result_to_table(const AutomatonResult& result);
+std::string result_to_table(const AutomatonResult &result);
 
 // Ecrit la table reconstruite sur disque.
-void save_table(const AutomatonResult& result, const std::string& path);
+void save_table(const AutomatonResult &result, const std::string &path);
 
 } // namespace pyplus
