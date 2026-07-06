@@ -64,9 +64,12 @@ cv::Mat load_image(const std::string& path);
 cv::Mat to_binary(const cv::Mat& gray);
 
 // Detecte les etats : composantes du fond circulaires (l'interieur d'un
-// cercle est un trou du fond).
+// cercle est un trou du fond). Le seuil d'aire est relatif a l'image mais
+// plafonne : les cercles d'etats ont une taille a peu pres fixe (rendu
+// Graphviz), alors que l'image grandit avec l'automate.
 std::vector<State> segment_states(const cv::Mat& binary_image,
-                                  double absolute_min_area = 0.005);
+                                  double relative_min_area = 0.005,
+                                  double min_area_cap = 500.0);
 
 // Efface les etats (outer_radius, pour couvrir les double-cercles).
 cv::Mat remove_states_from_img(const cv::Mat& binary_image,

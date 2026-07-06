@@ -16,8 +16,19 @@ def to_binary(gray):
     return binary
 
 
-def segment_states(binary_image, absolute_min_area=0.005):
+def segment_states(binary_image, relative_min_area=0.005, min_area_cap=500):
+    """
+    Detecte les etats : composantes du fond circulaires (l'interieur d'un
+    cercle est un trou du fond).
+
+    Le seuil d'aire est relatif a l'image mais plafonne : les cercles
+    d'etats ont une taille a peu pres fixe (rendu Graphviz), alors que
+    l'image grandit avec l'automate. Sans plafond, les grandes images
+    filtrent tous les etats.
+    """
     image_height, image_width = binary_image.shape
+    min_area = min(image_width * image_height * relative_min_area,
+                   min_area_cap)
 
     background_image = cv2.bitwise_not(binary_image)
 
@@ -39,7 +50,7 @@ def segment_states(binary_image, absolute_min_area=0.005):
         if touches_left or touches_top or touches_right or touches_bottom:
             continue
 
-        if component_area < image_width * image_height * absolute_min_area:
+        if component_area < min_area:
             continue
 
         component_mask = (labels_image == component_index).astype(np.uint8) * 255
@@ -191,6 +202,10 @@ def analyze_tip(tip_pixels, centroid, states):
             best_apex = (float(xs_global[min_idx]), float(ys_global[min_idx]))
             best_dest = state_index
             best_state_center = (scx, scy)
+
+    if best_apex is None:
+        # aucun etat detecte dans l'image : pas de destination possible
+        return None, (0.0, 0.0), None
 
     if best_state_center is not None:
         direction_x = best_state_center[0] - cx

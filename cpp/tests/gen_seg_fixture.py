@@ -14,13 +14,20 @@ dans cpp/tests/fixtures/seg/expected_structure.txt :
         n_arrows
         n_arrows lignes : src dst n_syms sym1 sym2 ...
 
-Le test C++ test_seg_cross re-execute le pipeline sur les memes PNG et
-compare la structure (etats, initial, acceptants, arcs et symboles).
+Ecrit aussi les tables reconstruites (result_to_table) dans
+expected_tables.txt :
+
+    ligne 1 : M
+    puis M blocs : nom_du_png, nombre de lignes de la table, la table
+
+Les tests C++ test_seg_cross et test_table_cross re-executent le pipeline
+sur les memes PNG et comparent structure et table.
 
 Usage (depuis la racine du depot, graphviz requis) :
     uv run --project python cpp/tests/gen_seg_fixture.py
 """
 
+import random
 import shutil
 import sys
 import tempfile
@@ -30,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python" / "src"))
 
 from automaton_generator import generate_corpus
+from export_table import result_to_table
 from main import load_classifier, segment_automaton
 
 N_PER_LEVEL = 3
@@ -40,6 +48,9 @@ def main():
     classifier = load_classifier(str(ROOT / "data" / "knn_model.bin"))
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # corpus reproductible (le generateur utilise `random`) ; certains tirages
+    # produisent des images sur lesquelles le prototype lui-meme plante
+    random.seed(42)
     with tempfile.TemporaryDirectory() as tmp:
         generate_corpus(tmp, n_per_level=N_PER_LEVEL)
         images = sorted(Path(tmp).glob("*/dfa_*.png"))
@@ -49,11 +60,31 @@ def main():
             shutil.copy(png, OUT_DIR / name)
             names.append(name)
 
+    # le prototype plante sur certaines images (0 etat detecte ->
+    # analyze_tip dereference None) : on les ecarte du fixture
+    results = {}
+    for name in list(names):
+        try:
+            results[name] = segment_automaton(str(OUT_DIR / name),
+                                              classifier=classifier)
+        except Exception as e:
+            print(f"[!] {name}: le prototype plante ({type(e).__name__}), "
+                  f"image ecartee")
+            (OUT_DIR / name).unlink()
+            names.remove(name)
+
+    with open(OUT_DIR / "expected_tables.txt", "w") as f:
+        f.write(f"{len(names)}\n")
+        for name in names:
+            table = result_to_table(results[name])
+            lines = table.splitlines()
+            f.write(f"{name}\n{len(lines)}\n")
+            f.write("\n".join(lines) + "\n")
+
     with open(OUT_DIR / "expected_structure.txt", "w") as f:
         f.write(f"{len(names)}\n")
         for name in names:
-            result = segment_automaton(str(OUT_DIR / name),
-                                       classifier=classifier)
+            result = results[name]
             states = result["states"]
             arrows = result["arrows"]
             initial = result["initial"]

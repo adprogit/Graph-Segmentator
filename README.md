@@ -77,18 +77,20 @@ le répertoire courant.
 cmake -S cpp -B cpp/build
 cmake --build cpp/build
 ctest --test-dir cpp/build          # tests, dont validation croisée vs Python
-./cpp/build/pyplus chemin/vers/image.png
+./cpp/build/pyplus chemin/vers/image.png [--table sortie.txt]
 ```
 
-Portage : `model_io`, `classifier`, `features` et `segmentation` (+ pipeline
-complet dans `main.cc`) faits ; `export_table` restant. Dépendance : OpenCV
-(`brew install opencv`) ; sans OpenCV, seuls `model_io` et `classifier`
-compilent.
+Portage de l'inférence complet : `model_io`, `classifier`, `features`,
+`segmentation`, `export_table` et le pipeline de bout en bout (image →
+table). L'entraînement, la génération du corpus et l'évaluation restent
+en Python. Dépendance : OpenCV (`brew install opencv`) ; sans OpenCV,
+seuls `model_io` et `classifier` compilent.
 
 Les tests `*_cross` vérifient que le C++ reproduit les sorties du prototype :
 prédictions kNN sur `data/knn_model.bin`, crops normalisés et vecteurs HOG
-sur des glyphes réels, et structure complète (états, initial, acceptants,
-arcs, symboles) sur des images d'automates. Les fixtures se régénèrent avec :
+sur des glyphes réels, structure complète (états, initial, acceptants,
+arcs, symboles) et tables finales sur des images d'automates. Les fixtures
+se régénèrent avec :
 ```bash
 uv run --project python cpp/tests/gen_cross_fixture.py
 uv run --project python cpp/tests/gen_features_fixture.py   # graphviz requis

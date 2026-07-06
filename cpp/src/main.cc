@@ -1,11 +1,7 @@
 // Point d'entree du portage C++ (equivalent de python/src/main.py) :
 // segmentation + reconnaissance d'une image d'automate.
 //
-//     pyplus <image> [--model data/knn_model.bin]
-//
-// Etat du portage, dans l'ordre du pipeline :
-//     [x] model_io  [x] classifier  [x] features  [x] segmentation
-//     [ ] export_table
+//     pyplus <image> [--model data/knn_model.bin] [--table sortie.txt]
 
 #include <cmath>
 #include <exception>
@@ -14,6 +10,7 @@
 #include <vector>
 
 #include "pyplus/classifier.hh"
+#include "pyplus/export_table.hh"
 #include "pyplus/model_io.hh"
 #include "pyplus/pipeline.hh"
 
@@ -80,18 +77,22 @@ int main(int argc, char** argv)
 {
     std::string image_path;
     std::string model_path = "data/knn_model.bin";
+    std::string table_path;
     for (int i = 1; i < argc; ++i)
     {
         const std::string arg = argv[i];
         if (arg == "--model" && i + 1 < argc)
             model_path = argv[++i];
+        else if (arg == "--table" && i + 1 < argc)
+            table_path = argv[++i];
         else if (image_path.empty())
             image_path = arg;
     }
     if (image_path.empty())
     {
         std::cerr << "usage: " << argv[0]
-                  << " <image> [--model data/knn_model.bin]\n";
+                  << " <image> [--model data/knn_model.bin]"
+                     " [--table sortie.txt]\n";
         return 1;
     }
 
@@ -114,6 +115,11 @@ int main(int argc, char** argv)
         const pyplus::AutomatonResult result = pyplus::segment_automaton(
             image_path, has_classifier ? &classifier : nullptr);
         print_summary(result);
+        if (!table_path.empty())
+        {
+            pyplus::save_table(result, table_path);
+            std::cout << "\nTable ecrite dans " << table_path << "\n";
+        }
     }
     catch (const std::exception& e)
     {

@@ -1,5 +1,6 @@
 #include "pyplus/segmentation.hh"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -49,10 +50,13 @@ cv::Mat to_binary(const cv::Mat& gray)
 }
 
 std::vector<State> segment_states(const cv::Mat& binary_image,
-                                  double absolute_min_area)
+                                  double relative_min_area,
+                                  double min_area_cap)
 {
     const int image_height = binary_image.rows;
     const int image_width = binary_image.cols;
+    const double min_area =
+        std::min(image_width * image_height * relative_min_area, min_area_cap);
 
     cv::Mat background_image;
     cv::bitwise_not(binary_image, background_image);
@@ -78,7 +82,7 @@ std::vector<State> segment_states(const cv::Mat& binary_image,
         if (touches_border)
             continue;
 
-        if (component_area < image_width * image_height * absolute_min_area)
+        if (component_area < min_area)
             continue;
 
         cv::Mat component_mask;
