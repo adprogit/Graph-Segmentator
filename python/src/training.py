@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -171,7 +172,7 @@ if __name__ == "__main__":
         row = "  ".join(f"{cm[i, j]:>3}" for j in range(len(ALPHABET)))
         print(f"  {c} : {row}")
 
-    MODEL_PATH = "knn_model.bin"
+    MODEL_PATH = str(Path(__file__).resolve().parents[2] / "data" / "knn_model.bin")
     save_model(MODEL_PATH, X, y)
     print(f"\nModele sauvegarde dans {MODEL_PATH} "
           f"({len(X)} exemples, dim {X.shape[1]}).")

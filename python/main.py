@@ -26,9 +26,11 @@ from model_io import save_model
 from main import load_classifier              # src/main.py
 from batch_eval import run_batch, print_table, save_failures
 
-CORPUS_DIR = "base_automata"
-MODEL_PATH = "knn_model.bin"
-FAILURES_PATH = "failures.json"
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+CORPUS_DIR = str(DATA / "base_automata")
+MODEL_PATH = str(DATA / "knn_model.bin")
+FAILURES_PATH = str(DATA / "failures.json")
 
 
 def step_generate():
