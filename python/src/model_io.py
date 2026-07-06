@@ -5,7 +5,7 @@ Layout du fichier (little-endian) :
     [int32]            N        nombre d'exemples
     [int32]            D        dimension des vecteurs de features
     [int32]            C        nombre de classes (labels distincts)
-    [N * D * float32]  X        vecteurs de features, ligne par ligne:wq
+    [N * D * float32]  X        vecteurs de features, ligne par ligne
     [N * int32]        y        label de chaque exemple (index de classe 0..C-1)
     [C blocs]          labels   pour chaque classe : [int32 len][len bytes utf-8]
 

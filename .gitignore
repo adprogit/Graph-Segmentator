@@ -12,6 +12,7 @@ wheels/
 # C++ build
 cpp/build/
 compile_commands.json
+.cache/
 
 # Sorties generees (corpus, evaluations)
 data/base_automata/

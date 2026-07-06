@@ -48,7 +48,7 @@ def step_generate():
 def step_train():
     """cf. training.__main__ (alphabet 'vbcndz', 400 exemples/caractere)."""
     print("\n=== 2. Entrainement du classifieur ===")
-    ALPHABET = list("vbcndz")   # adapte a ton alphabet reel
+    ALPHABET = list("vbcndz")
     N_PER_CHAR = 400
 
     print("Generation du dataset...")
