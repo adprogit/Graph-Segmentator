@@ -22,7 +22,7 @@ python/                    prototype de référence
     ├── model_io.py        sérialisation binaire portable du modèle (.bin, C++)
     ├── export_table.py    résultat → format table + comparaison
     ├── automaton_parser.py    parsing table → objet Automaton
-    ├── automaton_compare.py   Jaccard, isomorphisme, appariement optimal
+    ├── automaton_compare.py   similarité entre deux automates (noms d'états ignorés)
     ├── automaton_render.py    automate → DOT → rendu Graphviz
     ├── automaton_generator.py génération du corpus (3 niveaux)
     └── batch_eval.py      évaluation batch : scores par niveau + échecs JSON
@@ -101,8 +101,11 @@ uv run --project python cpp/tests/gen_seg_fixture.py        # graphviz requis
 
 Sur un corpus généré de 150 images (50 par niveau), les deux
 implémentations produisent des tables **identiques octet pour octet**
-(150/150), donc les mêmes scores face à la vérité terrain : 94,7 % de
-`global_aligned`, 80/150 de correspondances exactes.
+(150/150), donc la même précision face à l'automate de référence :
+80/150 automates parfaitement reconstruits, et en moyenne 94,7 % des
+éléments corrects (états, initial, acceptants, alphabet, transitions —
+les noms d'états n'important pas, seuls comptent la structure et les
+symboles).
 
 Temps du pipeline par image (modèle chargé une fois, Apple Silicon) :
 
