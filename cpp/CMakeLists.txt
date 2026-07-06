@@ -31,7 +31,10 @@ if(OpenCV_FOUND)
         src/pipeline.cc
         src/export_table.cc
     )
-    target_link_libraries(pyplus_core PUBLIC ${OpenCV_LIBS})
+    # seulement les modules utilises : ${OpenCV_LIBS} lierait ~60 dylibs
+    # et multiplie par ~6 le temps de demarrage du binaire (135ms -> 21ms)
+    target_link_libraries(pyplus_core PUBLIC
+        opencv_core opencv_imgproc opencv_imgcodecs)
     target_include_directories(pyplus_core PUBLIC ${OpenCV_INCLUDE_DIRS})
     target_compile_definitions(pyplus_core PUBLIC HAVE_OPENCV)
 endif()
