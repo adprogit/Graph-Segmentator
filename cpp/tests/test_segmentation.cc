@@ -88,6 +88,25 @@ int main() {
       pyplus::extract_label_crop(binary, cv::Rect(50, 50, 20, 20));
   CHECK(crop.rows == 32 && crop.cols == 32);
 
+  // segment_name_characters : deux blobs -> deux crops, ordre gauche->droite
+  cv::Mat name_crop = cv::Mat::zeros(30, 40, CV_8U);
+  cv::rectangle(name_crop, {24, 8}, {32, 20}, 255, -1); // 2e caractere (13 px)
+  cv::rectangle(name_crop, {6, 6}, {14, 22}, 255, -1);  // 1er caractere (17 px)
+  const std::vector<cv::Mat> chars = pyplus::segment_name_characters(name_crop);
+  CHECK(chars.size() == 2);
+  for (const cv::Mat &c : chars)
+    CHECK(c.rows == 32 && c.cols == 32);
+  // ordre verifiable par la geometrie : le 1er blob est plus haut, donc une
+  // fois centre dans son carre son contenu normalise est plus etroit que
+  // celui du 2e (largeur/hauteur : 13/21 contre 13/17)
+  CHECK(cv::countNonZero(chars[0].row(16)) <
+        cv::countNonZero(chars[1].row(16)));
+  // blob sous le seuil d'aire -> ignore ; crop vide -> aucun caractere
+  cv::Mat tiny = cv::Mat::zeros(30, 40, CV_8U);
+  tiny.at<std::uint8_t>(10, 10) = 255;
+  CHECK(pyplus::segment_name_characters(tiny).empty());
+  CHECK(pyplus::segment_name_characters(cv::Mat::zeros(30, 40, CV_8U)).empty());
+
   std::cout << "segmentation OK\n";
   return 0;
 }

@@ -39,30 +39,42 @@ def count_matched_transitions(mapping, pred, ref):
     return matched
  
  
-def find_best_mapping(pred, ref):
+def find_best_mapping(pred, ref, max_nodes=200_000):
     """
     Cherche la bijection etats_pred -> etats_ref maximisant le nombre de
     transitions alignees. Backtracking avec elagage par signature faible.
- 
+
     Retourne (mapping, nb_transitions_matchees).
-    Complexite maitrisee pour de petits automates (<= ~10 etats).
+    Depuis que les noms d'etats sont lus dans l'image, le mapping identite
+    (nom pour nom) sert de point de depart : il est souvent deja optimal,
+    ce qui permet un arret immediat des qu'un score parfait est atteint.
+    max_nodes borne l'exploration (les gros automates dont la prediction
+    diverge beaucoup exploseraient sinon) : au-dela, on garde le meilleur
+    mapping trouve.
     """
     pred_states = list(pred.states)
     ref_states = list(ref.states)
- 
+
     sig_p = {s: weak_signature(s, pred) for s in pred_states}
     sig_r = {t: weak_signature(t, ref) for t in ref_states}
- 
+
     candidates = {
         s: [t for t in ref_states if sig_r[t] == sig_p[s]]
         for s in pred_states
     }
     # etats les plus contraints d'abord -> elagage plus efficace
     order = sorted(pred_states, key=lambda s: len(candidates[s]))
- 
-    best = {"mapping": {}, "score": -1}
- 
+
+    perfect = len(pred.transitions)
+    identity = {s: s for s in pred_states if s in ref.states}
+    best = {"mapping": identity,
+            "score": count_matched_transitions(identity, pred, ref)}
+    budget = {"nodes": 0}
+
     def backtrack(idx, assigned, used):
+        budget["nodes"] += 1
+        if best["score"] >= perfect or budget["nodes"] > max_nodes:
+            return
         if idx == len(order):
             score = count_matched_transitions(assigned, pred, ref)
             if score > best["score"]:
@@ -80,7 +92,7 @@ def find_best_mapping(pred, ref):
             del assigned[s]
         # laisser s non mappe (tailles differentes / etat parasite detecte)
         backtrack(idx + 1, assigned, used)
- 
+
     backtrack(0, {}, set())
     return best["mapping"], best["score"]
 

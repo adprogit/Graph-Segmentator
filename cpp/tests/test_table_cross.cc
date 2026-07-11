@@ -2,7 +2,7 @@
 // table C++ doit etre identique octet pour octet a celle du prototype
 // Python sur les memes images (fixture genere par gen_seg_fixture.py).
 //
-//     test_table_cross <knn_model.bin> <fixtures/seg>
+//     test_table_cross <knn_letters.bin> <knn_digits.bin> <fixtures/seg>
 
 #include <fstream>
 #include <iostream>
@@ -14,14 +14,17 @@
 #include "pyplus/pipeline.hh"
 
 int main(int argc, char **argv) {
-  if (argc != 3) {
-    std::cerr << "usage: " << argv[0] << " <knn_model.bin> <fixtures/seg>\n";
+  if (argc != 4) {
+    std::cerr << "usage: " << argv[0]
+              << " <knn_letters.bin> <knn_digits.bin> <fixtures/seg>\n";
     return 2;
   }
-  const std::string seg_dir = argv[2];
+  const std::string seg_dir = argv[3];
 
   pyplus::KNNClassifier classifier(3, true);
   classifier.fit(pyplus::load_model(argv[1]));
+  pyplus::KNNClassifier digit_classifier(3, true);
+  digit_classifier.fit(pyplus::load_model(argv[2]));
 
   std::ifstream fixture(seg_dir + "/expected_tables.txt");
   if (!fixture) {
@@ -55,8 +58,8 @@ int main(int argc, char **argv) {
       return 2;
     }
 
-    const pyplus::AutomatonResult result =
-        pyplus::segment_automaton(seg_dir + "/" + name, &classifier);
+    const pyplus::AutomatonResult result = pyplus::segment_automaton(
+        seg_dir + "/" + name, &classifier, &digit_classifier);
     const std::string got = pyplus::result_to_table(result);
 
     if (got != expected) {

@@ -54,9 +54,9 @@ def generate_dfa(min_states: int, max_states: int,
 
 # parametres par niveau (etats min/max, alphabet min/max)
 LEVELS = {
-    "simple_dfa": (2, 3, 2, 2),  # 2-3 etats, 2 lettres
-    "medium_dfa": (3, 4, 3, 3),  # 3-4 etats, 3 lettres
-    "hard_dfa":   (5, 6, 4, 5),  # 5-6 etats, 4-5 lettres
+    "simple_dfa": (2, 3, 2, 2),   # 2-3 etats, 2 lettres
+    "medium_dfa": (3, 4, 3, 3),   # 3-4 etats, 3 lettres
+    "hard_dfa":   (5, 12, 4, 5),  # 5-12 etats (noms a 2 chiffres), 4-5 lettres
 }
 
 
