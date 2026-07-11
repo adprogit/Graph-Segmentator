@@ -32,6 +32,7 @@ flèches sur les gros automates denses).
 ```bash
 cd python
 uv run main.py                       # corpus + entraînement + évaluation
+uv run src/automaton_generator.py    # générer le corpus d'images (data/base_automata)
 uv run src/main.py image.png         # analyser une image
 uv run src/batch_eval.py ../data/base_automata/   # scores sur le corpus
 ```
