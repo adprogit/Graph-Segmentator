@@ -285,40 +285,6 @@ std::optional<int> reached_state(int x, int y, const std::vector<State> &states,
   return std::nullopt;
 }
 
-// Voisin blanc non visite le mieux aligne avec direction, ou nullopt.
-std::optional<cv::Point>
-best_neighbor(int cx, int cy, const cv::Mat &img,
-              const std::set<std::pair<int, int>> &visited,
-              const cv::Point2d &direction) {
-  const int height = img.rows;
-  const int width = img.cols;
-
-  std::optional<cv::Point> best;
-  double best_score = -std::numeric_limits<double>::infinity();
-  for (const auto &[dx, dy] : kNeighbors) {
-    const int nx = cx + dx;
-    const int ny = cy + dy;
-    if (!(0 <= ny && ny < height && 0 <= nx && nx < width))
-      continue;
-    if (img.at<std::uint8_t>(ny, nx) == 0)
-      continue;
-    if (visited.count({nx, ny}))
-      continue;
-
-    const double vx = nx - cx;
-    const double vy = ny - cy;
-    const double n = std::sqrt(vx * vx + vy * vy);
-    const double score =
-        n != 0.0 ? (vx * direction.x + vy * direction.y) / n : -1.0;
-    if (score > best_score) // egalite -> premier voisin (comme max())
-    {
-      best_score = score;
-      best = cv::Point(nx, ny);
-    }
-  }
-  return best;
-}
-
 // Etat le plus proche dans le cone defini par direction (fallback).
 std::optional<int> find_state_in_direction(
     const cv::Point2d &origin, const cv::Point2d &direction,

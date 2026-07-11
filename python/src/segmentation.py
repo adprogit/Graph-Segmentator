@@ -233,21 +233,6 @@ def reached_state(x, y, states, step, origin_dest_index, min_steps_before_return
     return None
 
 
-def best_neighbor(cx, cy, img, visited, direction):
-    """Voisin blanc non visite le mieux aligne avec direction, ou None."""
-    height, width = img.shape
-    voisins = [(cx+dx, cy+dy) for dx, dy in _NEIGHBORS
-               if 0 <= cy+dy < height and 0 <= cx+dx < width
-               and img[cy+dy, cx+dx] > 0 and (cx+dx, cy+dy) not in visited]
-    if not voisins:
-        return None
-
-    def score(p):
-        vx, vy = p[0]-cx, p[1]-cy
-        n = (vx*vx + vy*vy)**0.5
-        return (vx*direction[0] + vy*direction[1]) / n if n else -1.0
-
-    return max(voisins, key=score)
 
 
 def find_state_in_direction(origin, direction, states, exclude=None,
