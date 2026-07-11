@@ -10,6 +10,7 @@ dans cpp/tests/fixtures/seg/expected_structure.txt :
     puis M blocs :
         nom_du_png
         n_states initial          (initial = -1 si absent)
+        n_states noms d'etats     (reconnus dans l'image, repli s{i})
         n_states valeurs 0/1      (flags acceptants)
         n_arrows
         n_arrows lignes : src dst n_syms sym1 sym2 ...
@@ -45,12 +46,15 @@ OUT_DIR = ROOT / "cpp" / "tests" / "fixtures" / "seg"
 
 
 def main():
-    classifier = load_classifier(str(ROOT / "data" / "knn_model.bin"))
+    classifier = load_classifier(str(ROOT / "data" / "knn_letters.bin"))
+    digit_classifier = load_classifier(str(ROOT / "data" / "knn_digits.bin"))
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     # corpus reproductible (le generateur utilise `random`) ; certains tirages
-    # produisent des images sur lesquelles le prototype lui-meme plante
-    random.seed(42)
+    # produisent des images sur lesquelles le prototype lui-meme plante.
+    # seed choisie pour que le niveau hard contienne un automate a >= 11
+    # etats : les fixtures couvrent ainsi les noms a deux chiffres (s10...)
+    random.seed(3)
     with tempfile.TemporaryDirectory() as tmp:
         generate_corpus(tmp, n_per_level=N_PER_LEVEL)
         images = sorted(Path(tmp).glob("*/dfa_*.png"))
@@ -65,8 +69,9 @@ def main():
     results = {}
     for name in list(names):
         try:
-            results[name] = segment_automaton(str(OUT_DIR / name),
-                                              classifier=classifier)
+            results[name] = segment_automaton(
+                str(OUT_DIR / name), classifier=classifier,
+                digit_classifier=digit_classifier)
         except Exception as e:
             print(f"[!] {name}: le prototype plante ({type(e).__name__}), "
                   f"image ecartee")
@@ -90,6 +95,7 @@ def main():
             initial = result["initial"]
             f.write(f"{name}\n")
             f.write(f"{len(states)} {initial if initial is not None else -1}\n")
+            f.write(" ".join(s["name"] for s in states) + "\n")
             f.write(" ".join("1" if s.get("accepting") else "0"
                              for s in states) + "\n")
             f.write(f"{len(arrows)}\n")

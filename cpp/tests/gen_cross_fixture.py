@@ -1,11 +1,11 @@
 """
-Genere le fixture de validation croisee Python -> C++.
+Genere les fixtures de validation croisee Python -> C++ du kNN.
 
-Charge data/knn_model.bin, construit des vecteurs de requete deterministes
-(points d'entrainement bruites + interpolations asymetriques entre paires),
-les predit
-avec le kNN du prototype (k=3, pondere), et ecrit le tout dans
-cpp/tests/fixtures/cross_predictions.txt :
+Pour chacun des deux modeles (data/knn_letters.bin, data/knn_digits.bin),
+construit des vecteurs de requete deterministes (points d'entrainement
+bruites + interpolations asymetriques entre paires), les predit avec le
+kNN du prototype (k=3, pondere), et ecrit le tout dans
+cpp/tests/fixtures/cross_predictions_{letters,digits}.txt :
 
     ligne 1 : M D
     puis M lignes : label_attendu f1 f2 ... fD
@@ -28,11 +28,15 @@ import numpy as np
 from classifier import KNNClassifier
 from model_io import load_model
 
-OUT = ROOT / "cpp" / "tests" / "fixtures" / "cross_predictions.txt"
+FIXTURES = ROOT / "cpp" / "tests" / "fixtures"
+MODELS = {
+    "letters": ROOT / "data" / "knn_letters.bin",
+    "digits": ROOT / "data" / "knn_digits.bin",
+}
 
 
-def main():
-    X, y = load_model(str(ROOT / "data" / "knn_model.bin"))
+def generate_one(model_path, out_path):
+    X, y = load_model(str(model_path))
     clf = KNNClassifier(k=3, weighted=True)
     clf.fit(X, y)
 
@@ -47,15 +51,20 @@ def main():
 
     predictions = clf.predict(queries)
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUT, "w") as f:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w") as f:
         f.write(f"{len(queries)} {queries.shape[1]}\n")
         for q, label in zip(queries, predictions):
             # .9g : round-trip exact d'un float32 en texte
             coords = " ".join(f"{v:.9g}" for v in q)
             f.write(f"{label} {coords}\n")
 
-    print(f"{len(queries)} predictions ecrites dans {OUT}")
+    print(f"{len(queries)} predictions ecrites dans {out_path}")
+
+
+def main():
+    for name, model_path in MODELS.items():
+        generate_one(model_path, FIXTURES / f"cross_predictions_{name}.txt")
 
 
 if __name__ == "__main__":

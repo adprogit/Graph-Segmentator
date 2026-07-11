@@ -366,6 +366,36 @@ def extract_label_crop(img_labels, bbox, padding=2, target_size=32):
     return cv2.resize(square, (target_size, target_size),
                       interpolation=cv2.INTER_NEAREST)
 
+def segment_name_characters(name_crop, min_area=5, target_size=32):
+    """
+    Decoupe le nom d'un etat (name_crop) en caracteres : composantes
+    connexes triees de gauche a droite, chacune extraite via son propre
+    masque (le padding de extract_label_crop n'attrape ainsi pas les
+    pixels du caractere voisin). Retourne une liste de crops normalises.
+    """
+    n_components, labels_image, stats, _ = cv2.connectedComponentsWithStats(
+        name_crop, connectivity=8
+    )
+
+    kept = [i for i in range(1, n_components)
+            if stats[i, cv2.CC_STAT_AREA] >= min_area]
+    kept.sort(key=lambda i: (stats[i, cv2.CC_STAT_LEFT],
+                             stats[i, cv2.CC_STAT_TOP]))
+
+    crops = []
+    for component_index in kept:
+        bbox = (
+            int(stats[component_index, cv2.CC_STAT_LEFT]),
+            int(stats[component_index, cv2.CC_STAT_TOP]),
+            int(stats[component_index, cv2.CC_STAT_WIDTH]),
+            int(stats[component_index, cv2.CC_STAT_HEIGHT]),
+        )
+        mask = (labels_image == component_index).astype(np.uint8) * 255
+        crops.append(extract_label_crop(mask, bbox, padding=2,
+                                        target_size=target_size))
+    return crops
+
+
 def assign_labels_to_arrows(img_labels, arrows, min_area=10):
     for arrow in arrows:
         arrow["labels"] = []

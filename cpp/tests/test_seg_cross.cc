@@ -2,7 +2,7 @@
 // reproduire la structure extraite par le prototype Python sur les memes
 // images d'automates (fixture genere par gen_seg_fixture.py).
 //
-//     test_seg_cross <knn_model.bin> <fixtures/seg>
+//     test_seg_cross <knn_letters.bin> <knn_digits.bin> <fixtures/seg>
 
 #include <fstream>
 #include <iostream>
@@ -21,6 +21,9 @@ std::string describe(const pyplus::AutomatonResult &result) {
   std::ostringstream out;
   out << result.states.size() << " " << (result.initial ? *result.initial : -1)
       << "\n";
+  for (std::size_t i = 0; i < result.states.size(); ++i)
+    out << (i > 0 ? " " : "") << result.states[i].name;
+  out << "\n";
   for (std::size_t i = 0; i < result.states.size(); ++i)
     out << (i > 0 ? " " : "") << (result.states[i].accepting ? 1 : 0);
   out << "\n" << result.arrows.size() << "\n";
@@ -42,6 +45,9 @@ std::string read_expected_block(std::ifstream &f) {
   std::string header_line;
   std::getline(f, header_line); // "n_states initial"
   out << header_line << "\n";
+  std::string names_line;
+  std::getline(f, names_line);
+  out << names_line << "\n";
   std::string accepting_line;
   std::getline(f, accepting_line);
   out << accepting_line << "\n";
@@ -75,14 +81,17 @@ std::string trim_trailing_spaces(const std::string &block) {
 } // namespace
 
 int main(int argc, char **argv) {
-  if (argc != 3) {
-    std::cerr << "usage: " << argv[0] << " <knn_model.bin> <fixtures/seg>\n";
+  if (argc != 4) {
+    std::cerr << "usage: " << argv[0]
+              << " <knn_letters.bin> <knn_digits.bin> <fixtures/seg>\n";
     return 2;
   }
-  const std::string seg_dir = argv[2];
+  const std::string seg_dir = argv[3];
 
   pyplus::KNNClassifier classifier(3, true);
   classifier.fit(pyplus::load_model(argv[1]));
+  pyplus::KNNClassifier digit_classifier(3, true);
+  digit_classifier.fit(pyplus::load_model(argv[2]));
 
   std::ifstream fixture(seg_dir + "/expected_structure.txt");
   if (!fixture) {
@@ -108,8 +117,8 @@ int main(int argc, char **argv) {
       return 2;
     }
 
-    const pyplus::AutomatonResult result =
-        pyplus::segment_automaton(seg_dir + "/" + name, &classifier);
+    const pyplus::AutomatonResult result = pyplus::segment_automaton(
+        seg_dir + "/" + name, &classifier, &digit_classifier);
     const std::string got = trim_trailing_spaces(describe(result));
 
     if (got != expected) {

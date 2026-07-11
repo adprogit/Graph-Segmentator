@@ -8,16 +8,24 @@ transitions) depuis une image Graphviz, et l'exporte en table textuelle :
 ```
 Transitions au format `source:symbole>destination`, une par ligne.
 
+Les noms des états (`s0`, `s1`, ... `s12`) sont lus directement dans
+l'image, caractère par caractère, et repris tels quels dans la table ; si
+un nom est illisible ou en double, l'état reçoit un nom d'indice libre.
+
 Deux implémentations :
 
 - `python/` — prototype de référence (`numpy`/`OpenCV`), qui porte aussi
-  l'entraînement du k-NN, la génération du corpus et l'évaluation ;
+  l'entraînement des k-NN, la génération du corpus et l'évaluation ;
 - `cpp/` — portage de l'inférence (image → table), ~5× plus rapide.
 
-Elles partagent le modèle entraîné `data/knn_model.bin`. Sur un corpus de
-150 images, leurs tables sont identiques octet pour octet ; 80/150
-automates sont parfaitement reconstruits et en moyenne 94,7 % des éléments
-sont corrects (les noms d'états n'important pas).
+Elles partagent deux modèles entraînés : `data/knn_letters.bin` (lettres,
+pour les symboles de transitions et le `s` des noms) et
+`data/knn_digits.bin` (chiffres des noms). Sur un corpus de 150 images
+(jusqu'à 12 états), leurs tables sont identiques octet pour octet ; les
+noms d'états sont tous lus correctement, 70/150 automates sont
+parfaitement reconstruits noms compris, et en moyenne 94,7 % de la
+structure est correcte (les erreurs restantes viennent du suivi des
+flèches sur les gros automates denses).
 
 ## Python
 
@@ -39,6 +47,9 @@ ctest --test-dir cpp/build                        # tests
 ./cpp/build/pyplus image.png [--table sortie.txt]
 ./cpp/build/pyplus --batch data/base_automata --out predites/
 ```
+
+Les modèles se passent avec `--letters` et `--digits` (défaut :
+`data/knn_letters.bin` et `data/knn_digits.bin`, côté Python comme C++).
 
 Les tests `*_cross` comparent chaque étape (k-NN, features, segmentation,
 tables) aux sorties du prototype sur des images réelles ; les fixtures se

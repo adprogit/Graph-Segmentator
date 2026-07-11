@@ -16,20 +16,20 @@ def result_to_table(result):
     Convertit le dict de segment_automaton en une chaine au format table.
 
     Attend :
-        result["states"]  : liste d'etats (avec flag "accepting")
+        result["states"]  : liste d'etats (avec flag "accepting" et nom
+                            reconnu "name", repli s{i} si absent)
         result["initial"] : index de l'etat initial (ou None)
         result["arrows"]  : aretes avec labels reconnus (label["symbol"])
     """
     states = result["states"]
-    n = len(states)
-    state_names = [f"s{i}" for i in range(n)]
+    state_names = [s.get("name") or f"s{i}" for i, s in enumerate(states)]
 
     # alphabet + transitions, deduits des symboles reconnus
     alphabet = set()
     transitions = set()  # (src, sym, dst)
     for edge in result["arrows"]:
-        src = f"s{edge['source']}"
-        dst = f"s{edge['dest']}"
+        src = state_names[edge["source"]]
+        dst = state_names[edge["dest"]]
         for label in edge.get("labels", []):
             sym = label.get("symbol")
             if sym is None:
@@ -38,13 +38,14 @@ def result_to_table(result):
             transitions.add((src, sym, dst))
 
     initial = result["initial"]
-    initial_name = f"s{initial}" if initial is not None else (
+    initial_name = state_names[initial] if initial is not None else (
         state_names[0] if state_names else None)
 
     aut = Automaton(
         states=set(state_names),
         initial=initial_name,
-        accepting={f"s{i}" for i, s in enumerate(states) if s.get("accepting")},
+        accepting={state_names[i] for i, s in enumerate(states)
+                   if s.get("accepting")},
         alphabet=alphabet,
         transitions=transitions,
     )
@@ -76,11 +77,12 @@ def compare_with_reference(result_path, reference_path, verbose=True):
 
 # ---------- test ----------
 if __name__ == "__main__":
-    # resultat simule (ce que produirait segment_automaton)
+    # resultat simule (ce que produirait segment_automaton) : noms reconnus
+    # non contigus (s3, s7) pour verifier qu'ils sont bien repris tels quels
     fake_result = {
         "states": [
-            {"center_x": 90, "center_y": 80, "accepting": False},
-            {"center_x": 210, "center_y": 80, "accepting": True},
+            {"center_x": 90, "center_y": 80, "accepting": False, "name": "s3"},
+            {"center_x": 210, "center_y": 80, "accepting": True, "name": "s7"},
         ],
         "initial": 0,
         "arrows": [
@@ -99,20 +101,20 @@ if __name__ == "__main__":
 
     # reference identique pour le test
     ref = """#states
-s0
-s1
+s3
+s7
 #initial
-s0
+s3
 #accepting
-s1
+s7
 #alphabet
 b
 d
 #transitions
-s0:b>s0
-s0:d>s1
-s1:b>s1
-s1:d>s0
+s3:b>s3
+s3:d>s7
+s7:b>s7
+s7:d>s3
 """
     with open("reference.txt", "w") as f:
         f.write(ref)
