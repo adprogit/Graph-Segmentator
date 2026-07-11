@@ -177,7 +177,7 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
     if (touches_border)
       continue;
 
-    if (component_area < 5)
+    if (component_area < 6)
       continue;
 
     cv::Mat component_mask;
@@ -193,7 +193,7 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
 
     const double circularity =
         4.0 * CV_PI * component_area / (perimeter * perimeter);
-    if (circularity > 0.95)
+    if (circularity > 0.96)
       continue;
 
     Tip tip;
