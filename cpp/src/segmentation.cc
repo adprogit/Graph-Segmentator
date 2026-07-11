@@ -319,8 +319,6 @@ best_neighbor(int cx, int cy, const cv::Mat &img,
   return best;
 }
 
-
-
 // Etat le plus proche dans le cone defini par direction (fallback).
 std::optional<int> find_state_in_direction(
     const cv::Point2d &origin, const cv::Point2d &direction,
