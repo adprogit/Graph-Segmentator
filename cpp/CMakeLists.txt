@@ -9,6 +9,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Pas de contraction FMA : les flottants doivent etre arrondis exactement
+# comme en Python/NumPy pour que la validation croisee soit bit-a-bit
+# (sinon a*b + c*d fusionne en fma() et les seuils de decision divergent)
+add_compile_options(-ffp-contract=off)
+
 # OpenCV optionnel tant que le portage n'a pas commence (brew install opencv)
 find_package(OpenCV QUIET)
 if(OpenCV_FOUND)

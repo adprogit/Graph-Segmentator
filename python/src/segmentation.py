@@ -435,10 +435,44 @@ def _branch_candidates(cx, cy, img, visited, direction, min_align, gap_deg):
     return [pt for _align, pt in reps]
 
 
+def _lookahead_score(img, visited, start, direction, n_steps):
+    """
+    Mini-marche gloutonne de n_steps depuis start (direction figee) ;
+    retourne l'alignement du deplacement net avec direction. Sert a
+    departager les sorties d'un croisement : le trait qui continue tout
+    droit garde un score proche de 1, le trait croise devie et chute.
+    """
+    height, width = img.shape
+    cx, cy = start
+    seen = {start}
+    for _ in range(n_steps):
+        best, best_align = None, None
+        for dx, dy in _NEIGHBORS:
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= ny < height and 0 <= nx < width):
+                continue
+            if img[ny, nx] == 0 or (nx, ny) in visited or (nx, ny) in seen:
+                continue
+            n = (dx * dx + dy * dy) ** 0.5
+            align = (dx * direction[0] + dy * direction[1]) / n
+            if best_align is None or align > best_align:
+                best, best_align = (nx, ny), align
+        if best is None:
+            break
+        seen.add(best)
+        cx, cy = best
+    vx, vy = cx - start[0], cy - start[1]
+    n = (vx * vx + vy * vy) ** 0.5
+    if n == 0:
+        return -1.0
+    return (vx * direction[0] + vy * direction[1]) / n
+
+
 def follow_line_branches(img, start_pt, initial_dir, states,
                          origin_dest_index=None, max_steps=2000,
                          smoothing_window=5, min_steps_before_return=8,
-                         fork_min_align=0.15, fork_gap_deg=20.0, max_branches=4):
+                         fork_min_align=0.15, fork_gap_deg=20.0, max_branches=4,
+                         lookahead_steps=6, fork_lookahead_min=0.6):
     """
     Suit le trace depuis start_pt en detectant les bifurcations (pile explicite,
     visited partage). Retourne une liste de (chemin, source) : une entree par
@@ -486,6 +520,18 @@ def follow_line_branches(img, start_pt, initial_dir, states,
                                       fork_min_align, fork_gap_deg)
             if not reps:
                 break  # cul-de-sac
+
+            if len(reps) > 1:
+                # croisement possible : le look-ahead departage les sorties.
+                # On garde la meilleure et celles qui restent bien alignees
+                # (vraies bifurcations), on ecarte les traits croises.
+                scored = sorted(
+                    ((_lookahead_score(img, visited, pt, direction,
+                                       lookahead_steps), pt)
+                     for pt in reps),
+                    key=lambda sp: -sp[0])
+                reps = [pt for la, pt in scored
+                        if la >= fork_lookahead_min or pt == scored[0][1]]
 
             if len(reps) == 1 or branches_used >= max_branches:
                 nx, ny = reps[0]

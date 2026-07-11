@@ -383,13 +383,59 @@ branch_candidates(int cx, int cy, const cv::Mat &img,
   flush();
 
   // reps[0] sert de chemin unique hors bifurcation : le mieux aligne d'abord
-  std::sort(reps.begin(), reps.end(),
-            [](const auto &a, const auto &b) { return a.first > b.first; });
+  // (tri stable : en cas d'egalite, meme ordre que le list.sort de Python)
+  std::stable_sort(reps.begin(), reps.end(), [](const auto &a, const auto &b) {
+    return a.first > b.first;
+  });
   std::vector<cv::Point> ordered;
   ordered.reserve(reps.size());
   for (const auto &[align, pt] : reps)
     ordered.push_back(pt);
   return ordered;
+}
+
+// Mini-marche gloutonne de n_steps depuis start (direction figee) ;
+// retourne l'alignement du deplacement net avec direction. Sert a
+// departager les sorties d'un croisement : le trait qui continue tout
+// droit garde un score proche de 1, le trait croise devie et chute.
+double lookahead_score(const cv::Mat &img,
+                       const std::set<std::pair<int, int>> &visited,
+                       const cv::Point &start, const cv::Point2d &direction,
+                       int n_steps) {
+  const int height = img.rows, width = img.cols;
+  int cx = start.x, cy = start.y;
+  std::set<std::pair<int, int>> seen = {{cx, cy}};
+  for (int i = 0; i < n_steps; ++i) {
+    bool found = false;
+    cv::Point best;
+    double best_align = 0.0;
+    for (const auto &[dx, dy] : kNeighbors) {
+      const int nx = cx + dx, ny = cy + dy;
+      if (!(0 <= ny && ny < height && 0 <= nx && nx < width))
+        continue;
+      if (img.at<std::uint8_t>(ny, nx) == 0)
+        continue;
+      if (visited.count({nx, ny}) || seen.count({nx, ny}))
+        continue;
+      const double n = std::sqrt(static_cast<double>(dx * dx + dy * dy));
+      const double align = (dx * direction.x + dy * direction.y) / n;
+      if (!found || align > best_align) {
+        found = true;
+        best = cv::Point(nx, ny);
+        best_align = align;
+      }
+    }
+    if (!found)
+      break;
+    seen.insert({best.x, best.y});
+    cx = best.x;
+    cy = best.y;
+  }
+  const double vx = cx - start.x, vy = cy - start.y;
+  const double n = std::sqrt(vx * vx + vy * vy);
+  if (n == 0.0)
+    return -1.0;
+  return (vx * direction.x + vy * direction.y) / n;
 }
 
 std::vector<BranchResult>
@@ -398,7 +444,8 @@ follow_line_branches(const cv::Mat &img, const cv::Point2d &start_pt,
                      std::optional<int> origin_dest_index, int max_steps = 2000,
                      int smoothing_window = 5, int min_steps_before_return = 8,
                      double fork_min_align = 0.15, double fork_gap_deg = 20.0,
-                     int max_branches = 4) {
+                     int max_branches = 4, int lookahead_steps = 6,
+                     double fork_lookahead_min = 0.6) {
   const int height = img.rows, width = img.cols;
 
   int sx = static_cast<int>(start_pt.x), sy = static_cast<int>(start_pt.y);
@@ -457,12 +504,31 @@ follow_line_branches(const cv::Mat &img, const cv::Point2d &start_pt,
         break;
       }
 
-      const std::vector<cv::Point> reps =
+      std::vector<cv::Point> reps =
           branch_candidates(current.x, current.y, img, visited, direction,
                             fork_min_align, fork_gap_deg);
 
       if (reps.empty())
         break; // cul-de-sac
+
+      if (reps.size() > 1) {
+        // croisement possible : le look-ahead departage les sorties.
+        // On garde la meilleure et celles qui restent bien alignees
+        // (vraies bifurcations), on ecarte les traits croises.
+        std::vector<std::pair<double, cv::Point>> scored;
+        scored.reserve(reps.size());
+        for (const cv::Point &pt : reps)
+          scored.push_back(
+              {lookahead_score(img, visited, pt, direction, lookahead_steps),
+               pt});
+        std::stable_sort(
+            scored.begin(), scored.end(),
+            [](const auto &a, const auto &b) { return a.first > b.first; });
+        reps.clear();
+        for (std::size_t i = 0; i < scored.size(); ++i)
+          if (i == 0 || scored[i].first >= fork_lookahead_min)
+            reps.push_back(scored[i].second);
+      }
 
       if (reps.size() == 1 || branches_used >= max_branches) {
         const cv::Point nxt = reps.front();
