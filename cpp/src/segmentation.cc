@@ -2,7 +2,6 @@
 #include "pyplus/split_merged_tips.hh"
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <limits>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -359,14 +358,14 @@ branch_candidates(int cx, int cy, const cv::Mat &img,
             [](const Cand &a, const Cand &b) { return a.angle < b.angle; });
   const double gap = gap_deg * CV_PI / 180.0;
 
-  std::vector<cv::Point> reps;
+  std::vector<std::pair<double, cv::Point>> reps; // (alignement, representant)
   double cluster_best_align = -2.0;
   cv::Point cluster_best_pt;
   double prev_angle = cands.front().angle;
   bool open = false;
   auto flush = [&]() {
     if (open)
-      reps.push_back(cluster_best_pt);
+      reps.push_back({cluster_best_align, cluster_best_pt});
   };
 
   for (const Cand &c : cands) {
@@ -382,7 +381,15 @@ branch_candidates(int cx, int cy, const cv::Mat &img,
     open = true;
   }
   flush();
-  return reps;
+
+  // reps[0] sert de chemin unique hors bifurcation : le mieux aligne d'abord
+  std::sort(reps.begin(), reps.end(),
+            [](const auto &a, const auto &b) { return a.first > b.first; });
+  std::vector<cv::Point> ordered;
+  ordered.reserve(reps.size());
+  for (const auto &[align, pt] : reps)
+    ordered.push_back(pt);
+  return ordered;
 }
 
 std::vector<BranchResult>

@@ -414,14 +414,14 @@ def _branch_candidates(cx, cy, img, visited, direction, min_align, gap_deg):
     cands.sort(key=lambda c: c[0])
     gap = gap_deg * np.pi / 180.0
 
-    reps = []
+    reps = []  # (alignement, representant) par amas
     cluster_best_align = -2.0
     cluster_best_pt = None
     prev_angle = cands[0][0]
     open_cluster = False
     for angle, pt, align in cands:
         if open_cluster and angle - prev_angle > gap:   # nouvel amas
-            reps.append(cluster_best_pt)
+            reps.append((cluster_best_align, cluster_best_pt))
             cluster_best_align = -2.0
         if align > cluster_best_align:
             cluster_best_align = align
@@ -429,8 +429,10 @@ def _branch_candidates(cx, cy, img, visited, direction, min_align, gap_deg):
         prev_angle = angle
         open_cluster = True
     if open_cluster:
-        reps.append(cluster_best_pt)
-    return reps
+        reps.append((cluster_best_align, cluster_best_pt))
+    # reps[0] sert de chemin unique hors bifurcation : le mieux aligne d'abord
+    reps.sort(key=lambda r: -r[0])
+    return [pt for _align, pt in reps]
 
 
 def follow_line_branches(img, start_pt, initial_dir, states,
