@@ -14,9 +14,9 @@ Format des tips (identique au reste du pipeline Python) :
     {"centroid": (cx, cy), "area": int, "bbox": (x, y, w, h),
      "pixels": (ys, xs)}   # pixels au format np.where
 
-Note validation croisee : cv2.kmeans utilise un RNG interne. Pour des
-resultats reproductibles entre executions et entre langages, fixer la graine
-avec cv2.setRNGSeed(0) des deux cotes AVANT l'appel.
+Note validation croisee : cv2.kmeans utilise un RNG interne ; la graine est
+fixee (setRNGSeed(0)) juste avant chaque appel, des deux cotes, pour des
+resultats identiques entre executions et entre langages.
 """
 
 import cv2
@@ -50,6 +50,7 @@ def _try_split_tip(tip, median_area):
     points = np.column_stack([xs, ys]).astype(np.float32)
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+    cv2.setRNGSeed(0)
     _compactness, labels, centers = cv2.kmeans(
         points, 2, None, criteria, 3, cv2.KMEANS_PP_CENTERS
     )
@@ -69,7 +70,7 @@ def _try_split_tip(tip, median_area):
     dy = centers[0, 1] - centers[1, 1]
     center_dist = float(np.sqrt(dx * dx + dy * dy))
     typical_size = float(np.sqrt(median_area))
-    if center_dist < 0.8 * typical_size:
+    if center_dist < 0.9 * typical_size:
         return None
 
     return _make_tip(part0_y, part0_x), _make_tip(part1_y, part1_x)
@@ -83,7 +84,10 @@ def split_merged_tips(tips, merge_area_ratio=1.6):
     if len(tips) < 2:
         return tips  # pas de mediane fiable
 
-    median_area = float(np.median([t["area"] for t in tips]))
+    # element median superieur, comme le nth_element du C++ (pas de moyenne
+    # des deux elements centraux quand le nombre de tips est pair)
+    areas = sorted(t["area"] for t in tips)
+    median_area = float(areas[len(areas) // 2])
 
     result = []
     for tip in tips:

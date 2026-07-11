@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from split_merged_tips import split_merged_tips
+
 _NEIGHBORS = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
 
 
@@ -175,7 +177,7 @@ def find_triangles(img_cleaned):
             "pixels": np.where(labels_image == component_index),
         })
 
-    return tips
+    return split_merged_tips(tips)
 
 
 def analyze_tip(tip_pixels, centroid, states):

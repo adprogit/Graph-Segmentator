@@ -6,6 +6,7 @@
 #include <optional>
 #include <utility>
 
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace pyplus {
@@ -44,6 +45,9 @@ std::optional<std::pair<Tip, Tip>> try_split_tip(const Tip &tip,
   }
 
   cv::Mat cluster_ids, centers;
+  // graine fixe avant chaque kmeans : memes resultats que le prototype
+  // Python (validation croisee), quel que soit l'etat anterieur du RNG
+  cv::setRNGSeed(0);
   cv::kmeans(points, 2, cluster_ids,
              cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT,
                               20, 1.0),
