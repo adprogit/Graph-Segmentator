@@ -20,6 +20,7 @@ struct State {
   bool accepting = false;
   int area = 0;
   cv::Mat name_crop;
+  std::string name; // nom final (reconnu ou repli s{i}), vide avant attribution
 };
 
 struct Tip {
@@ -93,6 +94,14 @@ cv::Mat isolate_labels(const cv::Mat &img_clean_final,
 // Decoupe la lettre dans sa bbox, centre et normalise en target_size.
 cv::Mat extract_label_crop(const cv::Mat &img_labels, const cv::Rect &bbox,
                            int padding = 2, int target_size = 32);
+
+// Decoupe le nom d'un etat (name_crop) en caracteres : composantes
+// connexes triees de gauche a droite, chacune extraite via son propre
+// masque (le padding de extract_label_crop n'attrape ainsi pas les
+// pixels du caractere voisin).
+std::vector<cv::Mat> segment_name_characters(const cv::Mat &name_crop,
+                                             int min_area = 5,
+                                             int target_size = 32);
 
 // Rattache chaque etiquette a l'arc dont le chemin passe au plus pres.
 void assign_labels_to_arrows(const cv::Mat &img_labels,

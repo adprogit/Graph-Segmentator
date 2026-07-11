@@ -614,6 +614,40 @@ cv::Mat extract_label_crop(const cv::Mat &img_labels, const cv::Rect &bbox,
   return resized;
 }
 
+std::vector<cv::Mat> segment_name_characters(const cv::Mat &name_crop,
+                                             int min_area, int target_size) {
+  cv::Mat labels_image;
+  cv::Mat stats;
+  cv::Mat centroids;
+  const int n_components = cv::connectedComponentsWithStats(
+      name_crop, labels_image, stats, centroids, 8);
+
+  std::vector<int> kept;
+  for (int i = 1; i < n_components; ++i)
+    if (stats.at<std::int32_t>(i, cv::CC_STAT_AREA) >= min_area)
+      kept.push_back(i);
+  std::stable_sort(kept.begin(), kept.end(), [&stats](int a, int b) {
+    const int left_a = stats.at<std::int32_t>(a, cv::CC_STAT_LEFT);
+    const int left_b = stats.at<std::int32_t>(b, cv::CC_STAT_LEFT);
+    if (left_a != left_b)
+      return left_a < left_b;
+    return stats.at<std::int32_t>(a, cv::CC_STAT_TOP) <
+           stats.at<std::int32_t>(b, cv::CC_STAT_TOP);
+  });
+
+  std::vector<cv::Mat> crops;
+  for (const int component_index : kept) {
+    const cv::Rect bbox(
+        stats.at<std::int32_t>(component_index, cv::CC_STAT_LEFT),
+        stats.at<std::int32_t>(component_index, cv::CC_STAT_TOP),
+        stats.at<std::int32_t>(component_index, cv::CC_STAT_WIDTH),
+        stats.at<std::int32_t>(component_index, cv::CC_STAT_HEIGHT));
+    const cv::Mat mask = (labels_image == component_index); // CV_8U, 255/0
+    crops.push_back(extract_label_crop(mask, bbox, 2, target_size));
+  }
+  return crops;
+}
+
 void assign_labels_to_arrows(const cv::Mat &img_labels,
                              std::vector<Arrow> &arrows, int min_area) {
   for (Arrow &arrow : arrows)

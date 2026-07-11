@@ -57,10 +57,14 @@ endforeach()
 
 add_test(NAME model_io COMMAND test_model_io)
 add_test(NAME classifier COMMAND test_classifier)
-# fixture regenerable : uv run --project python cpp/tests/gen_cross_fixture.py
-add_test(NAME cross_python COMMAND test_cross_python
-    ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/cross_predictions.txt
+# fixtures regenerables : uv run --project python cpp/tests/gen_cross_fixture.py
+add_test(NAME cross_letters COMMAND test_cross_python
+    ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_letters.bin
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/cross_predictions_letters.txt
+)
+add_test(NAME cross_digits COMMAND test_cross_python
+    ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_digits.bin
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/cross_predictions_digits.txt
 )
 
 if(OpenCV_FOUND)
@@ -79,16 +83,19 @@ if(OpenCV_FOUND)
     add_test(NAME export_table COMMAND test_export_table)
     # fixtures : uv run --project python cpp/tests/gen_seg_fixture.py
     add_test(NAME seg_cross COMMAND test_seg_cross
-        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
+        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_letters.bin
+        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_digits.bin
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/seg
     )
     add_test(NAME table_cross COMMAND test_table_cross
-        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
+        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_letters.bin
+        ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_digits.bin
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/seg
     )
     add_test(NAME cli_batch COMMAND pyplus
         --batch ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/seg
         --out ${CMAKE_CURRENT_BINARY_DIR}/batch_out
-        --model ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_model.bin
+        --letters ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_letters.bin
+        --digits ${CMAKE_CURRENT_SOURCE_DIR}/../data/knn_digits.bin
     )
 endif()

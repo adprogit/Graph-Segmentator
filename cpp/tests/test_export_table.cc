@@ -30,8 +30,12 @@ pyplus::Arrow make_arrow(int src, int dst, const std::string &symbol) {
 } // namespace
 
 int main() {
+  // meme resultat simule que le __main__ Python : noms reconnus non
+  // contigus (s3, s7), repris tels quels dans la table
   pyplus::AutomatonResult result;
   result.states.resize(2);
+  result.states[0].name = "s3";
+  result.states[1].name = "s7";
   result.states[1].accepting = true;
   result.initial = 0;
   result.arrows = {
@@ -41,15 +45,25 @@ int main() {
       make_arrow(1, 0, "d"),
   };
 
-  const std::string expected = "#states\ns0\ns1\n#initial\ns0\n#accepting\ns1\n"
+  const std::string expected = "#states\ns3\ns7\n#initial\ns3\n#accepting\ns7\n"
                                "#alphabet\nb\nd\n#transitions\n"
-                               "s0:b>s0\ns0:d>s1\ns1:b>s1\ns1:d>s0\n";
+                               "s3:b>s3\ns3:d>s7\ns7:b>s7\ns7:d>s3\n";
   CHECK(pyplus::result_to_table(result) == expected);
 
   // etiquette non reconnue -> ignoree
   pyplus::ArrowLabel unrecognized;
   result.arrows[0].labels.push_back(unrecognized);
   CHECK(pyplus::result_to_table(result) == expected);
+
+  // sans noms reconnus -> repli sur le nommage par indice
+  pyplus::AutomatonResult unnamed;
+  unnamed.states.resize(2);
+  unnamed.states[1].accepting = true;
+  unnamed.initial = 0;
+  unnamed.arrows = {make_arrow(0, 1, "d")};
+  CHECK(pyplus::result_to_table(unnamed) ==
+        "#states\ns0\ns1\n#initial\ns0\n#accepting\ns1\n"
+        "#alphabet\nd\n#transitions\ns0:d>s1\n");
 
   // resultat vide : initial absent -> ligne vide
   const pyplus::AutomatonResult empty;

@@ -29,13 +29,18 @@ std::string to_table(const Automaton &aut) {
 std::string result_to_table(const AutomatonResult &result) {
   Automaton aut;
   const std::size_t n = result.states.size();
-  for (std::size_t i = 0; i < n; ++i)
-    aut.states.insert("s" + std::to_string(i));
+  // nom reconnu dans l'image si present, repli d'indice sinon
+  std::vector<std::string> state_names(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    state_names[i] = result.states[i].name.empty() ? "s" + std::to_string(i)
+                                                   : result.states[i].name;
+    aut.states.insert(state_names[i]);
+  }
 
   // alphabet + transitions, deduits des symboles reconnus
   for (const Arrow &edge : result.arrows) {
-    const std::string src = "s" + std::to_string(edge.source);
-    const std::string dst = "s" + std::to_string(edge.dest);
+    const std::string &src = state_names[edge.source];
+    const std::string &dst = state_names[edge.dest];
     for (const ArrowLabel &label : edge.labels) {
       if (!label.symbol)
         continue; // non reconnu -> on n'invente pas
@@ -45,13 +50,13 @@ std::string result_to_table(const AutomatonResult &result) {
   }
 
   if (result.initial)
-    aut.initial = "s" + std::to_string(*result.initial);
+    aut.initial = state_names[*result.initial];
   else if (n > 0)
-    aut.initial = *aut.states.begin(); // state_names[0] = "s0"
+    aut.initial = state_names[0]; // comme le prototype (pas le min du set)
 
   for (std::size_t i = 0; i < n; ++i)
     if (result.states[i].accepting)
-      aut.accepting.insert("s" + std::to_string(i));
+      aut.accepting.insert(state_names[i]);
 
   return to_table(aut);
 }

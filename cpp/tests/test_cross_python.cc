@@ -1,8 +1,8 @@
 // Validation croisee : le kNN C++ doit reproduire les predictions du
-// prototype Python sur le vrai modele (fixture genere par
-// gen_cross_fixture.py).
+// prototype Python sur le vrai modele (fixtures generes par
+// gen_cross_fixture.py). Lance une fois par modele (lettres, chiffres).
 //
-//     test_cross_python <knn_model.bin> <cross_predictions.txt>
+//     test_cross_python <knn_letters|digits.bin> <cross_predictions_*.txt>
 
 #include <fstream>
 #include <iostream>
@@ -16,7 +16,7 @@
 int main(int argc, char **argv) {
   if (argc != 3) {
     std::cerr << "usage: " << argv[0]
-              << " <knn_model.bin> <cross_predictions.txt>\n";
+              << " <knn_letters|digits.bin> <cross_predictions_*.txt>\n";
     return 2;
   }
 

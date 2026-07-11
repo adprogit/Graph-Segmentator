@@ -31,7 +31,8 @@ import numpy as np
 from features import compute_hog, normalize_crop
 from training import augment, build_char_base
 
-ALPHABET = "vbcndz"
+# lettres de transitions + un echantillon de chiffres (noms d'etats)
+ALPHABET = "vbcndz0157"
 N_PER_CHAR = 5
 OUT = ROOT / "cpp" / "tests" / "fixtures" / "features_expected.txt"
 

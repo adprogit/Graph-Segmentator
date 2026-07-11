@@ -10,7 +10,7 @@ Arborescence attendue :
         hard_dfa/    ...
 
 Usage :
-    python batch_eval.py base_automata --model knn_model.bin
+    python batch_eval.py base_automata --letters knn_letters.bin --digits knn_digits.bin
     python batch_eval.py base_automata --failures failures.json --csv scores.csv
 """
 
@@ -37,13 +37,14 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
 
-def evaluate_one(image_path, ref_path, classifier):
+def evaluate_one(image_path, ref_path, classifier, digit_classifier=None):
     """
     Reconstruit une table depuis une image et la compare a sa reference.
     Le chemin de l'image est toujours conserve dans le rapport (pour debug).
     """
     try:
-        result = segment_automaton(image_path, classifier=classifier)
+        result = segment_automaton(image_path, classifier=classifier,
+                                   digit_classifier=digit_classifier)
         table_str = result_to_table(result)
     except Exception as exc:
         return {"error": str(exc), "path": image_path}
@@ -55,18 +56,21 @@ def evaluate_one(image_path, ref_path, classifier):
     return report
 
 
+# deux familles cote a cote : scores bruts (les noms d'etats comptent,
+# mesure de la reconnaissance des noms) et scores alignes (structure,
+# invariante au nommage)
+DISPLAY_COLS = ["states", "alphabet", "transitions", "global",
+                "aligned_transitions", "global_aligned",
+                "exact_match_names", "exact_match"]
 
-DISPLAY_COLS = ["states", "alphabet",
-                "aligned_accepting", "aligned_initial", "aligned_transitions",
-                "global_aligned", "exact_match"]
- 
 COL_HEADERS = {
     "states": "states", "alphabet": "alphabet", "accepting": "accept",
     "initial": "initial", "transitions": "trans",
     "aligned_accepting": "al_acc", "aligned_initial": "al_init",
     "aligned_transitions": "al_trans",
     "global": "global", "global_aligned": "g_align",
-    "exact_match": "exact", "isomorphic": "iso",
+    "exact_match": "exact", "exact_match_names": "ex_names",
+    "isomorphic": "iso",
 }
  
 
@@ -105,8 +109,10 @@ def aggregate(reports):
         vals = [r[key] for r in valid if key in r]
         stats[key] = sum(vals) / len(vals) if vals else float("nan")
 
-    # exact_match base sur le global aligne (name-invariant), la vraie metrique
+    # exact_match : structure parfaite (name-invariant) ;
+    # exact_match_names : table litteralement parfaite, noms compris
     stats["exact_match"] = sum(1 for r in valid if r["global_aligned"] >= 0.999) / len(valid)
+    stats["exact_match_names"] = sum(1 for r in valid if r["global"] >= 0.999) / len(valid)
     stats["isomorphic"] = sum(1 for r in valid if r.get("isomorphic")) / len(valid)
     return stats
 
@@ -141,7 +147,8 @@ def collect_failures(reports, global_threshold=0.9):
 # Batch complet
 # =============================================================================
 
-def run_batch(corpus_dir, classifier, global_threshold=0.9,
+def run_batch(corpus_dir, classifier, digit_classifier=None,
+              global_threshold=0.9,
               levels=("simple_dfa", "medium_dfa", "hard_dfa")):
     """
     Evalue chaque niveau. Retourne :
@@ -162,7 +169,8 @@ def run_batch(corpus_dir, classifier, global_threshold=0.9,
             ref_path = os.path.splitext(img_path)[0] + ".txt"
             if not os.path.exists(ref_path):
                 continue
-            reports.append(evaluate_one(img_path, ref_path, classifier))
+            reports.append(evaluate_one(img_path, ref_path, classifier,
+                                        digit_classifier))
 
         stats[level] = aggregate(reports)
         hard, soft = collect_failures(reports, global_threshold)
@@ -230,8 +238,10 @@ def save_scores_csv(stats, out_path):
 def main():
     parser = argparse.ArgumentParser(description="Evaluation batch du pipeline.")
     parser.add_argument("corpus", help="dossier du corpus (contient simple_dfa/...)")
-    parser.add_argument("--model", default=str(DATA_DIR / "knn_model.bin"),
-                        help="modele kNN (defaut: data/knn_model.bin)")
+    parser.add_argument("--letters", default=str(DATA_DIR / "knn_letters.bin"),
+                        help="modele kNN lettres (defaut: data/knn_letters.bin)")
+    parser.add_argument("--digits", default=str(DATA_DIR / "knn_digits.bin"),
+                        help="modele kNN chiffres (defaut: data/knn_digits.bin)")
     parser.add_argument("--failures", default=str(DATA_DIR / "failures.json"),
                         help="fichier JSON des echecs (defaut: data/failures.json)")
     parser.add_argument("--csv", default=None,
@@ -241,12 +251,17 @@ def main():
     args = parser.parse_args()
 
     classifier = None
+    digit_classifier = None
     try:
-        classifier = load_classifier(args.model)
+        classifier = load_classifier(args.letters)
     except FileNotFoundError:
-        print(f"[!] modele {args.model} absent : evaluation structurelle seule.")
+        print(f"[!] modele {args.letters} absent : evaluation structurelle seule.")
+    try:
+        digit_classifier = load_classifier(args.digits)
+    except FileNotFoundError:
+        print(f"[!] modele {args.digits} absent : noms d'etats non reconnus.")
 
-    stats, failures = run_batch(args.corpus, classifier,
+    stats, failures = run_batch(args.corpus, classifier, digit_classifier,
                                 global_threshold=args.threshold)
     print_table(stats)
     save_failures(failures, args.failures)

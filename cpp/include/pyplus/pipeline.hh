@@ -19,10 +19,15 @@ struct AutomatonResult {
   std::optional<int> initial;
 };
 
-// Execute toute la chaine sur une image d'automate ; si classifier est
-// non nul, reconnait les symboles des etiquettes.
+// Execute toute la chaine sur une image d'automate. classifier (lettres)
+// reconnait les symboles des etiquettes et le premier caractere des noms
+// d'etats, digit_classifier (chiffres) la suite des noms. Les noms ne
+// sont lus que si les deux modeles sont fournis ; sinon chaque etat garde
+// son nom d'indice s{i} (champ State::name toujours renseigne).
 // Lance std::runtime_error si l'image est introuvable.
-AutomatonResult segment_automaton(const std::string &image_path,
-                                  const KNNClassifier *classifier = nullptr);
+AutomatonResult
+segment_automaton(const std::string &image_path,
+                  const KNNClassifier *classifier = nullptr,
+                  const KNNClassifier *digit_classifier = nullptr);
 
 } // namespace pyplus

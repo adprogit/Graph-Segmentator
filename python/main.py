@@ -19,17 +19,15 @@ SRC = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC))
 
 from automaton_generator import generate_corpus
-from training import (
-    generate_dataset, train_test_split, confusion_report, KNNClassifier,
-)
-from model_io import save_model
+from training import LETTERS, DIGITS, train_and_save
 from main import load_classifier              # src/main.py
 from batch_eval import run_batch, print_table, save_failures
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 
 CORPUS_DIR = str(DATA / "base_automata")
-MODEL_PATH = str(DATA / "knn_model.bin")
+LETTERS_PATH = str(DATA / "knn_letters.bin")
+DIGITS_PATH = str(DATA / "knn_digits.bin")
 FAILURES_PATH = str(DATA / "failures.json")
 
 
@@ -46,48 +44,30 @@ def step_generate():
 
 
 def step_train():
-    """cf. training.__main__ (alphabet 'vbcndz', 400 exemples/caractere)."""
-    print("\n=== 2. Entrainement du classifieur ===")
-    ALPHABET = list("vbcndz")
-    N_PER_CHAR = 400
-
-    print("Generation du dataset...")
-    X, y = generate_dataset(ALPHABET, n_per_char=N_PER_CHAR)
-    print(f"  {len(X)} exemples, dim HOG = {X.shape[1]}")
-
-    X_tr, y_tr, X_te, y_te = train_test_split(X, y, test_ratio=0.2)
-    print(f"  train={len(X_tr)}  test={len(X_te)}")
-
-    print("Entrainement kNN...")
-    clf = KNNClassifier(k=3, weighted=True)
-    clf.fit(X_tr, y_tr)
-
-    print("Evaluation...")
-    y_pred = clf.predict(X_te)
-    cm, acc = confusion_report(y_te, y_pred, ALPHABET)
-
-    print(f"\nAccuracy : {acc:.1%}\n")
-    print("Matrice de confusion (lignes=vrai, colonnes=predit) :")
-    print("      " + "  ".join(f"{c:>3}" for c in ALPHABET))
-    for i, c in enumerate(ALPHABET):
-        row = "  ".join(f"{cm[i, j]:>3}" for j in range(len(ALPHABET)))
-        print(f"  {c} : {row}")
-
-    save_model(MODEL_PATH, X, y)
-    print(f"\nModele sauvegarde dans {MODEL_PATH} "
-          f"({len(X)} exemples, dim {X.shape[1]}).")
+    """cf. training.__main__ (26 lettres + 10 chiffres, 400 exemples/caractere)."""
+    print("\n=== 2. Entrainement des classifieurs ===")
+    print("--- Modele lettres (a-z) ---")
+    train_and_save(LETTERS, LETTERS_PATH)
+    print("\n--- Modele chiffres (0-9) ---")
+    train_and_save(DIGITS, DIGITS_PATH)
 
 
 def step_eval():
-    """cf. batch_eval.__main__ (corpus=base_automata, modele=knn_model.bin)."""
+    """cf. batch_eval.__main__ (corpus=base_automata, modeles=knn_*.bin)."""
     print("\n=== 3. Evaluation batch ===")
     classifier = None
+    digit_classifier = None
     try:
-        classifier = load_classifier(MODEL_PATH)
+        classifier = load_classifier(LETTERS_PATH)
     except FileNotFoundError:
-        print(f"[!] modele {MODEL_PATH} absent : evaluation structurelle seule.")
+        print(f"[!] modele {LETTERS_PATH} absent : evaluation structurelle seule.")
+    try:
+        digit_classifier = load_classifier(DIGITS_PATH)
+    except FileNotFoundError:
+        print(f"[!] modele {DIGITS_PATH} absent : noms d'etats non reconnus.")
 
-    stats, failures = run_batch(CORPUS_DIR, classifier, global_threshold=0.9)
+    stats, failures = run_batch(CORPUS_DIR, classifier, digit_classifier,
+                                global_threshold=0.9)
     print_table(stats)
     save_failures(failures, FAILURES_PATH)
 
