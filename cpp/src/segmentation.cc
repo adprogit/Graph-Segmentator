@@ -534,7 +534,6 @@ AdjacencyResult build_adjacency_matrix(const std::vector<State> &states,
 
     // une arete par branche (source distincte), meme destination
     for (BranchResult &br : branches) {
-      std::cerr << "branch found\n";
       Arrow edge;
       edge.source = br.source;
       edge.dest = *tip.dest;
