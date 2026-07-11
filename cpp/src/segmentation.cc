@@ -1,5 +1,5 @@
 #include "pyplus/segmentation.hh"
-
+#include "pyplus/split_merged_tips.hh"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -204,7 +204,7 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
     tip.pixels = component_pixels(labels_image, i, tip.bbox);
     tips.push_back(std::move(tip));
   }
-
+  split_merged_tips(tips);
   return tips;
 }
 

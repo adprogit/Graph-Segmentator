@@ -30,6 +30,7 @@ if(OpenCV_FOUND)
         src/segmentation.cc
         src/pipeline.cc
         src/export_table.cc
+        src/split_merged_tips.cc
     )
     # seulement les modules utilises : ${OpenCV_LIBS} lierait ~60 dylibs
     # et multiplie par ~6 le temps de demarrage du binaire (135ms -> 21ms)
