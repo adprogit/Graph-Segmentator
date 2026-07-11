@@ -145,7 +145,7 @@ def find_triangles(img_cleaned):
         if touches_left or touches_top or touches_right or touches_bottom:
             continue
 
-        if component_area < 5:
+        if component_area < 6:
             continue
 
         component_mask = (labels_image == component_index).astype(np.uint8) * 255
@@ -159,7 +159,7 @@ def find_triangles(img_cleaned):
             continue
 
         circularity = 4 * np.pi * component_area / (perimeter ** 2)
-        if circularity > 0.95:
+        if circularity > 0.97:
             continue
 
         tips.append({
@@ -409,6 +409,130 @@ def assign_labels_to_arrows(img_labels, arrows, min_area=10):
             })
 
     return arrows
+
+def _branch_candidates(cx, cy, img, visited, direction, min_align, gap_deg):
+    """
+    Regroupe les voisins blancs non visites, alignes avec direction, en amas
+    angulaires distincts. Retourne un representant (le mieux aligne) par amas.
+    1 representant -> suivi simple ; 2+ -> bifurcation.
+    Un trace perpendiculaire (croisement) a un alignement faible et est ecarte.
+    """
+    height, width = img.shape
+    cands = []  # (angle, (nx, ny), align)
+    for dx, dy in _NEIGHBORS:
+        nx, ny = cx + dx, cy + dy
+        if not (0 <= ny < height and 0 <= nx < width):
+            continue
+        if img[ny, nx] == 0 or (nx, ny) in visited:
+            continue
+        n = (dx * dx + dy * dy) ** 0.5
+        if n == 0:
+            continue
+        align = (dx * direction[0] + dy * direction[1]) / n
+        if align < min_align:          # ecarte perpendiculaire / arriere
+            continue
+        cands.append((np.arctan2(dy, dx), (nx, ny), align))
+
+    if not cands:
+        return []
+
+    cands.sort(key=lambda c: c[0])
+    gap = gap_deg * np.pi / 180.0
+
+    reps = []
+    cluster_best_align = -2.0
+    cluster_best_pt = None
+    prev_angle = cands[0][0]
+    open_cluster = False
+    for angle, pt, align in cands:
+        if open_cluster and angle - prev_angle > gap:   # nouvel amas
+            reps.append(cluster_best_pt)
+            cluster_best_align = -2.0
+        if align > cluster_best_align:
+            cluster_best_align = align
+            cluster_best_pt = pt
+        prev_angle = angle
+        open_cluster = True
+    if open_cluster:
+        reps.append(cluster_best_pt)
+    return reps
+
+
+def follow_line_branches(img, start_pt, initial_dir, states,
+                         origin_dest_index=None, max_steps=2000,
+                         smoothing_window=5, min_steps_before_return=8,
+                         fork_min_align=0.15, fork_gap_deg=20.0, max_branches=4):
+    """
+    Suit le trace depuis start_pt en detectant les bifurcations (pile explicite,
+    visited partage). Retourne une liste de (chemin, source) : une entree par
+    branche atteignant un etat, sources dedupliquees.
+    """
+    height, width = img.shape
+
+    sx, sy = int(start_pt[0]), int(start_pt[1])
+    if not (0 <= sy < height and 0 <= sx < width) or img[sy, sx] == 0:
+        ys, xs = np.where(img > 0)
+        if len(xs) == 0:
+            return []
+        i = int(np.argmin((xs - start_pt[0]) ** 2 + (ys - start_pt[1]) ** 2))
+        sx, sy = int(xs[i]), int(ys[i])
+
+    # pile de frames : (pos, direction, chemin)
+    stack = [((sx, sy), initial_dir, [(sx, sy)])]
+    visited = {(sx, sy)}
+
+    results = []
+    seen_sources = set()
+    branches_used = 0
+
+    while stack:
+        _pos, direction, chemin = stack.pop()
+
+        for _step in range(max_steps):
+            cx, cy = chemin[-1]
+
+            hit = None
+            for idx, s in enumerate(states):
+                if idx == origin_dest_index and len(chemin) < min_steps_before_return:
+                    continue
+                r = s.get("outer_radius", s["radius"]) + 8
+                if (cx - s["center_x"]) ** 2 + (cy - s["center_y"]) ** 2 <= r * r:
+                    hit = idx
+                    break
+            if hit is not None:
+                if hit not in seen_sources:
+                    seen_sources.add(hit)
+                    results.append((chemin, hit))
+                break
+
+            reps = _branch_candidates(cx, cy, img, visited, direction,
+                                      fork_min_align, fork_gap_deg)
+            if not reps:
+                break  # cul-de-sac
+
+            if len(reps) == 1 or branches_used >= max_branches:
+                nx, ny = reps[0]
+                visited.add((nx, ny))
+                chemin.append((nx, ny))
+                rx, ry = chemin[max(0, len(chemin) - smoothing_window)]
+                dx, dy = nx - rx, ny - ry
+                n = (dx * dx + dy * dy) ** 0.5
+                if n:
+                    direction = (dx / n, dy / n)
+            else:
+                for nx, ny in reps:
+                    if (nx, ny) in visited:
+                        continue
+                    visited.add((nx, ny))
+                    dx, dy = nx - cx, ny - cy
+                    n = (dx * dx + dy * dy) ** 0.5
+                    d = (dx / n, dy / n) if n else direction
+                    stack.append(((nx, ny), d, chemin + [(nx, ny)]))
+                    branches_used += 1
+                break  # la frame courante est remplacee par ses branches
+
+    return results
+
 def build_adjacency_matrix(matrix, states, triangles, img_clean_final,
                            initial_state=None):
     """
@@ -448,29 +572,32 @@ def build_adjacency_matrix(matrix, states, triangles, img_clean_final,
         img_suivi = img_clean_final.copy()
         ys, xs = pixels
         img_suivi[ys, xs] = 0
-        chemin, source_index = follow_line(
+
+        branches = follow_line_branches(
             img_suivi, (base_x, base_y), init_dir, states,
             origin_dest_index=dest_index
         )
-        if source_index is None:
+
+        if not branches:
             opposite = (-direction[0], -direction[1])
-            source_index = find_state_in_direction(
-                (cx, cy), opposite, states, exclude=dest_index
-            )
-        if source_index is None:
-            if initial_state_index is None:
-                initial_state_index = dest_index
-            continue
+            src = find_state_in_direction((cx, cy), opposite, states,
+                                          exclude=dest_index)
+            if src is None:
+                if initial_state_index is None:
+                    initial_state_index = dest_index  # fleche initiale
+                continue
+            branches = [([], src)]
 
-        edge = {
-            "source": source_index,
-            "dest": dest_index,
-            "chemin": chemin,
-            "tip": triangle,
-            "labels": [],
-        }
-        arrows.append(edge)
-
+        for chemin, source_index in branches:
+            edge = {
+                "source": source_index,
+                "dest": dest_index,
+                "chemin": chemin,
+                "tip": triangle,
+                "labels": [],
+            }
+            arrows.append(edge)
+            matrix[source_index][dest_index] = edge
         matrix[source_index][dest_index] = edge
 
     return matrix, initial_state_index, arrows

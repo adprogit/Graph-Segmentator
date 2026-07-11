@@ -62,7 +62,7 @@ std::optional<std::pair<Tip, Tip>> try_split_tip(const Tip &tip,
   const double dy = centers.at<float>(0, 1) - centers.at<float>(1, 1);
   const double center_dist = std::sqrt(dx * dx + dy * dy);
   const double typical_size = std::sqrt(median_area);
-  if (center_dist < 0.8 * typical_size)
+  if (center_dist < 0.9 * typical_size)
     return std::nullopt;
 
   return std::make_pair(make_tip(std::move(part0)), make_tip(std::move(part1)));
