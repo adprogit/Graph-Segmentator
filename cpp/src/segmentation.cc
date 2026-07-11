@@ -1,13 +1,12 @@
 #include "pyplus/segmentation.hh"
-
+#include "pyplus/split_merged_tips.hh"
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <set>
-#include <utility>
-
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <set>
+#include <utility>
 
 namespace pyplus {
 
@@ -174,10 +173,11 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
 
     const bool touches_border =
         bx == 0 || by == 0 || bx + bw == image_width || by + bh == image_height;
+
     if (touches_border)
       continue;
 
-    if (component_area < 5)
+    if (component_area < 6)
       continue;
 
     cv::Mat component_mask;
@@ -185,17 +185,18 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(component_mask, contours, cv::RETR_EXTERNAL,
                      cv::CHAIN_APPROX_NONE);
+
     if (contours.empty())
       continue;
     const double perimeter = cv::arcLength(contours[0], true);
+
     if (perimeter == 0.0)
       continue;
 
     const double circularity =
         4.0 * CV_PI * component_area / (perimeter * perimeter);
-    if (circularity > 0.95)
+    if (circularity > 0.98)
       continue;
-
     Tip tip;
     tip.centroid =
         cv::Point2d(centroids.at<double>(i, 0), centroids.at<double>(i, 1));
@@ -204,7 +205,7 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
     tip.pixels = component_pixels(labels_image, i, tip.bbox);
     tips.push_back(std::move(tip));
   }
-
+  split_merged_tips(tips);
   return tips;
 }
 
@@ -283,111 +284,6 @@ std::optional<int> reached_state(int x, int y, const std::vector<State> &states,
   return std::nullopt;
 }
 
-// Voisin blanc non visite le mieux aligne avec direction, ou nullopt.
-std::optional<cv::Point>
-best_neighbor(int cx, int cy, const cv::Mat &img,
-              const std::set<std::pair<int, int>> &visited,
-              const cv::Point2d &direction) {
-  const int height = img.rows;
-  const int width = img.cols;
-
-  std::optional<cv::Point> best;
-  double best_score = -std::numeric_limits<double>::infinity();
-  for (const auto &[dx, dy] : kNeighbors) {
-    const int nx = cx + dx;
-    const int ny = cy + dy;
-    if (!(0 <= ny && ny < height && 0 <= nx && nx < width))
-      continue;
-    if (img.at<std::uint8_t>(ny, nx) == 0)
-      continue;
-    if (visited.count({nx, ny}))
-      continue;
-
-    const double vx = nx - cx;
-    const double vy = ny - cy;
-    const double n = std::sqrt(vx * vx + vy * vy);
-    const double score =
-        n != 0.0 ? (vx * direction.x + vy * direction.y) / n : -1.0;
-    if (score > best_score) // egalite -> premier voisin (comme max())
-    {
-      best_score = score;
-      best = cv::Point(nx, ny);
-    }
-  }
-  return best;
-}
-
-// Suit le trace depuis start_pt ; retourne (chemin, etat atteint | nullopt).
-std::pair<std::vector<cv::Point>, std::optional<int>>
-follow_line(const cv::Mat &img, const cv::Point2d &start_pt,
-            cv::Point2d direction, const std::vector<State> &states,
-            std::optional<int> origin_dest_index = std::nullopt,
-            int max_steps = 2000, int smoothing_window = 5,
-            int min_steps_before_return = 8) {
-  const int height = img.rows;
-  const int width = img.cols;
-
-  int sx = static_cast<int>(start_pt.x);
-  int sy = static_cast<int>(start_pt.y);
-  if (!(0 <= sy && sy < height && 0 <= sx && sx < width) ||
-      img.at<std::uint8_t>(sy, sx) == 0) {
-    // point de depart hors trait : pixel blanc le plus proche
-    double best_d = std::numeric_limits<double>::infinity();
-    bool found = false;
-    for (int y = 0; y < height; ++y) {
-      const std::uint8_t *row = img.ptr<std::uint8_t>(y);
-      for (int x = 0; x < width; ++x) {
-        if (row[x] == 0)
-          continue;
-        const double d = (x - start_pt.x) * (x - start_pt.x) +
-                         (y - start_pt.y) * (y - start_pt.y);
-        if (d < best_d) {
-          best_d = d;
-          sx = x;
-          sy = y;
-          found = true;
-        }
-      }
-    }
-    if (!found)
-      return {{}, std::nullopt};
-  }
-
-  std::vector<cv::Point> chemin = {cv::Point(sx, sy)};
-  std::set<std::pair<int, int>> visited = {{sx, sy}};
-
-  for (int step = 0; step < max_steps; ++step) {
-    const cv::Point current = chemin.back();
-
-    const std::optional<int> hit =
-        reached_state(current.x, current.y, states, step, origin_dest_index,
-                      min_steps_before_return);
-    if (hit)
-      return {chemin, hit};
-
-    const std::optional<cv::Point> nxt =
-        best_neighbor(current.x, current.y, img, visited, direction);
-    if (!nxt)
-      return {chemin, std::nullopt}; // cul-de-sac
-
-    visited.insert({nxt->x, nxt->y});
-    chemin.push_back(*nxt);
-
-    const std::size_t ref_index =
-        chemin.size() > static_cast<std::size_t>(smoothing_window)
-            ? chemin.size() - static_cast<std::size_t>(smoothing_window)
-            : 0;
-    const cv::Point ref = chemin[ref_index];
-    const double dx = nxt->x - ref.x;
-    const double dy = nxt->y - ref.y;
-    const double n = std::sqrt(dx * dx + dy * dy);
-    if (n != 0.0)
-      direction = cv::Point2d(dx / n, dy / n);
-  }
-
-  return {chemin, std::nullopt};
-}
-
 // Etat le plus proche dans le cone defini par direction (fallback).
 std::optional<int> find_state_in_direction(
     const cv::Point2d &origin, const cv::Point2d &direction,
@@ -419,6 +315,254 @@ std::optional<int> find_state_in_direction(
 }
 
 } // namespace
+struct BranchResult {
+  std::vector<cv::Point> chemin;
+  int source;
+};
+
+std::vector<cv::Point>
+branch_candidates(int cx, int cy, const cv::Mat &img,
+                  const std::set<std::pair<int, int>> &visited,
+                  const cv::Point2d &direction, double min_align,
+                  double gap_deg) {
+  const int height = img.rows;
+  const int width = img.cols;
+
+  struct Cand {
+    double angle;
+    cv::Point pt;
+    double align;
+  };
+  std::vector<Cand> cands;
+  for (const auto &[dx, dy] : kNeighbors) {
+    const int nx = cx + dx, ny = cy + dy;
+    if (!(0 <= ny && ny < height && 0 <= nx && nx < width))
+      continue;
+    if (img.at<std::uint8_t>(ny, nx) == 0)
+      continue;
+    if (visited.count({nx, ny}))
+      continue;
+    const double vx = nx - cx, vy = ny - cy;
+    const double n = std::sqrt(vx * vx + vy * vy);
+    if (n == 0.0)
+      continue;
+    const double align = (vx * direction.x + vy * direction.y) / n;
+    if (align < min_align)
+      continue; // ecarte perpendiculaire / arriere
+    cands.push_back({std::atan2(vy, vx), cv::Point(nx, ny), align});
+  }
+  if (cands.empty())
+    return {};
+
+  std::sort(cands.begin(), cands.end(),
+            [](const Cand &a, const Cand &b) { return a.angle < b.angle; });
+  const double gap = gap_deg * CV_PI / 180.0;
+
+  std::vector<std::pair<double, cv::Point>> reps; // (alignement, representant)
+  double cluster_best_align = -2.0;
+  cv::Point cluster_best_pt;
+  double prev_angle = cands.front().angle;
+  bool open = false;
+  auto flush = [&]() {
+    if (open)
+      reps.push_back({cluster_best_align, cluster_best_pt});
+  };
+
+  for (const Cand &c : cands) {
+    if (open && c.angle - prev_angle > gap) {
+      flush();
+      cluster_best_align = -2.0;
+    }
+    if (c.align > cluster_best_align) {
+      cluster_best_align = c.align;
+      cluster_best_pt = c.pt;
+    }
+    prev_angle = c.angle;
+    open = true;
+  }
+  flush();
+
+  // reps[0] sert de chemin unique hors bifurcation : le mieux aligne d'abord
+  // (tri stable : en cas d'egalite, meme ordre que le list.sort de Python)
+  std::stable_sort(reps.begin(), reps.end(), [](const auto &a, const auto &b) {
+    return a.first > b.first;
+  });
+  std::vector<cv::Point> ordered;
+  ordered.reserve(reps.size());
+  for (const auto &[align, pt] : reps)
+    ordered.push_back(pt);
+  return ordered;
+}
+
+// Mini-marche gloutonne de n_steps depuis start (direction figee) ;
+// retourne l'alignement du deplacement net avec direction. Sert a
+// departager les sorties d'un croisement : le trait qui continue tout
+// droit garde un score proche de 1, le trait croise devie et chute.
+double lookahead_score(const cv::Mat &img,
+                       const std::set<std::pair<int, int>> &visited,
+                       const cv::Point &start, const cv::Point2d &direction,
+                       int n_steps) {
+  const int height = img.rows, width = img.cols;
+  int cx = start.x, cy = start.y;
+  std::set<std::pair<int, int>> seen = {{cx, cy}};
+  for (int i = 0; i < n_steps; ++i) {
+    bool found = false;
+    cv::Point best;
+    double best_align = 0.0;
+    for (const auto &[dx, dy] : kNeighbors) {
+      const int nx = cx + dx, ny = cy + dy;
+      if (!(0 <= ny && ny < height && 0 <= nx && nx < width))
+        continue;
+      if (img.at<std::uint8_t>(ny, nx) == 0)
+        continue;
+      if (visited.count({nx, ny}) || seen.count({nx, ny}))
+        continue;
+      const double n = std::sqrt(static_cast<double>(dx * dx + dy * dy));
+      const double align = (dx * direction.x + dy * direction.y) / n;
+      if (!found || align > best_align) {
+        found = true;
+        best = cv::Point(nx, ny);
+        best_align = align;
+      }
+    }
+    if (!found)
+      break;
+    seen.insert({best.x, best.y});
+    cx = best.x;
+    cy = best.y;
+  }
+  const double vx = cx - start.x, vy = cy - start.y;
+  const double n = std::sqrt(vx * vx + vy * vy);
+  if (n == 0.0)
+    return -1.0;
+  return (vx * direction.x + vy * direction.y) / n;
+}
+
+std::vector<BranchResult>
+follow_line_branches(const cv::Mat &img, const cv::Point2d &start_pt,
+                     cv::Point2d initial_dir, const std::vector<State> &states,
+                     std::optional<int> origin_dest_index, int max_steps = 2000,
+                     int smoothing_window = 5, int min_steps_before_return = 8,
+                     double fork_min_align = 0.15, double fork_gap_deg = 20.0,
+                     int max_branches = 4, int lookahead_steps = 6,
+                     double fork_lookahead_min = 0.6) {
+  const int height = img.rows, width = img.cols;
+
+  int sx = static_cast<int>(start_pt.x), sy = static_cast<int>(start_pt.y);
+  if (!(0 <= sy && sy < height && 0 <= sx && sx < width) ||
+      img.at<std::uint8_t>(sy, sx) == 0) {
+    double best_d = std::numeric_limits<double>::infinity();
+    bool found = false;
+    for (int y = 0; y < height; ++y) {
+      const std::uint8_t *row = img.ptr<std::uint8_t>(y);
+      for (int x = 0; x < width; ++x) {
+        if (row[x] == 0)
+          continue;
+        const double d = (x - start_pt.x) * (x - start_pt.x) +
+                         (y - start_pt.y) * (y - start_pt.y);
+        if (d < best_d) {
+          best_d = d;
+          sx = x;
+          sy = y;
+          found = true;
+        }
+      }
+    }
+    if (!found)
+      return {};
+  }
+
+  struct Frame {
+    cv::Point pos;
+    cv::Point2d dir;
+    std::vector<cv::Point> chemin;
+  };
+  std::vector<Frame> stack;
+  stack.push_back({cv::Point(sx, sy), initial_dir, {cv::Point(sx, sy)}});
+  std::set<std::pair<int, int>> visited = {{sx, sy}};
+
+  std::vector<BranchResult> results;
+  std::set<int> seen_sources;
+  int branches_used = 0;
+
+  while (!stack.empty()) {
+    Frame f = std::move(stack.back());
+    stack.pop_back();
+    cv::Point2d direction = f.dir;
+
+    for (int step = 0; step < max_steps; ++step) {
+      const cv::Point current = f.chemin.back();
+
+      const std::optional<int> hit = reached_state(
+          current.x, current.y, states, static_cast<int>(f.chemin.size()),
+          origin_dest_index, min_steps_before_return);
+      if (hit) {
+        if (!seen_sources.count(*hit)) {
+          seen_sources.insert(*hit);
+          results.push_back({f.chemin, *hit});
+        }
+        break;
+      }
+
+      std::vector<cv::Point> reps =
+          branch_candidates(current.x, current.y, img, visited, direction,
+                            fork_min_align, fork_gap_deg);
+
+      if (reps.empty())
+        break; // cul-de-sac
+
+      if (reps.size() > 1) {
+        // croisement possible : le look-ahead departage les sorties.
+        // On garde la meilleure et celles qui restent bien alignees
+        // (vraies bifurcations), on ecarte les traits croises.
+        std::vector<std::pair<double, cv::Point>> scored;
+        scored.reserve(reps.size());
+        for (const cv::Point &pt : reps)
+          scored.push_back(
+              {lookahead_score(img, visited, pt, direction, lookahead_steps),
+               pt});
+        std::stable_sort(
+            scored.begin(), scored.end(),
+            [](const auto &a, const auto &b) { return a.first > b.first; });
+        reps.clear();
+        for (std::size_t i = 0; i < scored.size(); ++i)
+          if (i == 0 || scored[i].first >= fork_lookahead_min)
+            reps.push_back(scored[i].second);
+      }
+
+      if (reps.size() == 1 || branches_used >= max_branches) {
+        const cv::Point nxt = reps.front();
+        visited.insert({nxt.x, nxt.y});
+        f.chemin.push_back(nxt);
+        const std::size_t ri =
+            f.chemin.size() > static_cast<std::size_t>(smoothing_window)
+                ? f.chemin.size() - smoothing_window
+                : 0;
+        const cv::Point ref = f.chemin[ri];
+        const double dx = nxt.x - ref.x, dy = nxt.y - ref.y;
+        const double n = std::sqrt(dx * dx + dy * dy);
+        if (n != 0.0)
+          direction = cv::Point2d(dx / n, dy / n);
+      } else {
+        for (const cv::Point &rep : reps) {
+          if (visited.count({rep.x, rep.y}))
+            continue;
+          visited.insert({rep.x, rep.y});
+          std::vector<cv::Point> ch = f.chemin;
+          ch.push_back(rep);
+          const double dx = rep.x - current.x, dy = rep.y - current.y;
+          const double n = std::sqrt(dx * dx + dy * dy);
+          const cv::Point2d d =
+              n != 0.0 ? cv::Point2d(dx / n, dy / n) : direction;
+          stack.push_back({rep, d, std::move(ch)});
+          ++branches_used;
+        }
+        break;
+      }
+    }
+  }
+  return results;
+}
 
 AdjacencyResult build_adjacency_matrix(const std::vector<State> &states,
                                        const std::vector<Tip> &triangles,
@@ -443,34 +587,35 @@ AdjacencyResult build_adjacency_matrix(const std::vector<State> &states,
         init_norm > 0.0 ? cv::Point2d(init_dx / init_norm, init_dy / init_norm)
                         : cv::Point2d(-tip.direction.x, -tip.direction.y);
 
-    // on efface la tete puis on suit le trace depuis la base du triangle
     cv::Mat img_suivi = img_clean_final.clone();
     for (const cv::Point &p : triangle.pixels)
       img_suivi.at<std::uint8_t>(p.y, p.x) = 0;
-
-    auto [chemin, source_index] = follow_line(
+    std::vector<BranchResult> branches = follow_line_branches(
         img_suivi, cv::Point2d(base_x, base_y), init_dir, states, tip.dest);
-    if (!source_index) {
+    if (branches.empty()) {
+      // repli geometrique (une seule source presumee)
       const cv::Point2d opposite(-tip.direction.x, -tip.direction.y);
-      source_index = find_state_in_direction(triangle.centroid, opposite,
-                                             states, tip.dest);
-    }
-    if (!source_index) {
-      // aucun etat en amont : fleche initiale
-      if (!result.initial)
-        result.initial = tip.dest;
-      continue;
+      const std::optional<int> src = find_state_in_direction(
+          triangle.centroid, opposite, states, tip.dest);
+      if (!src) {
+        if (!result.initial)
+          result.initial = tip.dest; // fleche initiale
+        continue;
+      }
+      branches.push_back({{}, *src});
     }
 
-    Arrow edge;
-    edge.source = *source_index;
-    edge.dest = *tip.dest;
-    edge.chemin = std::move(chemin);
-    result.arrows.push_back(std::move(edge));
-
-    result.matrix[static_cast<std::size_t>(*source_index)]
-                 [static_cast<std::size_t>(*tip.dest)] =
-        static_cast<int>(result.arrows.size()) - 1;
+    // une arete par branche (source distincte), meme destination
+    for (BranchResult &br : branches) {
+      Arrow edge;
+      edge.source = br.source;
+      edge.dest = *tip.dest;
+      edge.chemin = std::move(br.chemin);
+      result.arrows.push_back(std::move(edge));
+      result.matrix[static_cast<std::size_t>(br.source)]
+                   [static_cast<std::size_t>(*tip.dest)] =
+          static_cast<int>(result.arrows.size()) - 1;
+    }
   }
 
   return result;
