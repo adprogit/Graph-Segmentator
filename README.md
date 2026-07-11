@@ -16,7 +16,7 @@ Deux implémentations :
 
 - `python/` — prototype de référence (`numpy`/`OpenCV`), qui porte aussi
   l'entraînement des k-NN, la génération du corpus et l'évaluation ;
-- `cpp/` — portage de l'inférence (image → table), ~5× plus rapide.
+- `cpp/` — portage de l'inférence (image → table), ~8× plus rapide.
 
 Elles partagent deux modèles entraînés : `data/knn_letters.bin` (lettres,
 pour les symboles de transitions et le `s` des noms) et
@@ -54,3 +54,14 @@ Les modèles se passent avec `--letters` et `--digits` (défaut :
 Les tests `*_cross` comparent chaque étape (k-NN, features, segmentation,
 tables) aux sorties du prototype sur des images réelles ; les fixtures se
 régénèrent avec les scripts `cpp/tests/gen_*.py`.
+
+## Performances
+
+Comparaison du temps d'exécution en traitement par lots sur le corpus `data/base_automata` (150 images d'automates) :
+
+| Version | Temps total |
+|---------|-------------|
+| **C++** | **~4.2 s**  |
+| **Python** | **~33.5 s** |
+
+Le portage en C++ (`pyplus`) permet une accélération par un facteur 8 de l'inférence (segmentation et reconnaissance) par rapport au script Python de référence (`batch_eval.py`).
