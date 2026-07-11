@@ -319,76 +319,7 @@ best_neighbor(int cx, int cy, const cv::Mat &img,
   return best;
 }
 
-// Suit le trace depuis start_pt ; retourne (chemin, etat atteint | nullopt).
-std::pair<std::vector<cv::Point>, std::optional<int>>
-follow_line(const cv::Mat &img, const cv::Point2d &start_pt,
-            cv::Point2d direction, const std::vector<State> &states,
-            std::optional<int> origin_dest_index = std::nullopt,
-            int max_steps = 2000, int smoothing_window = 5,
-            int min_steps_before_return = 8) {
-  const int height = img.rows;
-  const int width = img.cols;
 
-  int sx = static_cast<int>(start_pt.x);
-  int sy = static_cast<int>(start_pt.y);
-  if (!(0 <= sy && sy < height && 0 <= sx && sx < width) ||
-      img.at<std::uint8_t>(sy, sx) == 0) {
-    // point de depart hors trait : pixel blanc le plus proche
-    double best_d = std::numeric_limits<double>::infinity();
-    bool found = false;
-    for (int y = 0; y < height; ++y) {
-      const std::uint8_t *row = img.ptr<std::uint8_t>(y);
-      for (int x = 0; x < width; ++x) {
-        if (row[x] == 0)
-          continue;
-        const double d = (x - start_pt.x) * (x - start_pt.x) +
-                         (y - start_pt.y) * (y - start_pt.y);
-        if (d < best_d) {
-          best_d = d;
-          sx = x;
-          sy = y;
-          found = true;
-        }
-      }
-    }
-    if (!found)
-      return {{}, std::nullopt};
-  }
-
-  std::vector<cv::Point> chemin = {cv::Point(sx, sy)};
-  std::set<std::pair<int, int>> visited = {{sx, sy}};
-
-  for (int step = 0; step < max_steps; ++step) {
-    const cv::Point current = chemin.back();
-
-    const std::optional<int> hit =
-        reached_state(current.x, current.y, states, step, origin_dest_index,
-                      min_steps_before_return);
-    if (hit)
-      return {chemin, hit};
-
-    const std::optional<cv::Point> nxt =
-        best_neighbor(current.x, current.y, img, visited, direction);
-    if (!nxt)
-      return {chemin, std::nullopt}; // cul-de-sac
-
-    visited.insert({nxt->x, nxt->y});
-    chemin.push_back(*nxt);
-
-    const std::size_t ref_index =
-        chemin.size() > static_cast<std::size_t>(smoothing_window)
-            ? chemin.size() - static_cast<std::size_t>(smoothing_window)
-            : 0;
-    const cv::Point ref = chemin[ref_index];
-    const double dx = nxt->x - ref.x;
-    const double dy = nxt->y - ref.y;
-    const double n = std::sqrt(dx * dx + dy * dy);
-    if (n != 0.0)
-      direction = cv::Point2d(dx / n, dy / n);
-  }
-
-  return {chemin, std::nullopt};
-}
 
 // Etat le plus proche dans le cone defini par direction (fallback).
 std::optional<int> find_state_in_direction(

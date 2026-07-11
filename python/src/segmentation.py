@@ -250,48 +250,6 @@ def best_neighbor(cx, cy, img, visited, direction):
     return max(voisins, key=score)
 
 
-def follow_line(img, start_pt, direction, states,
-                origin_dest_index=None, max_steps=2000,
-                smoothing_window=5, min_steps_before_return=8):
-    """
-    Retourne (chemin, index_etat_atteint | None).
-    """
-    height, width = img.shape
-
-    sx, sy = int(start_pt[0]), int(start_pt[1])
-    if not (0 <= sy < height and 0 <= sx < width) or img[sy, sx] == 0:
-        ys, xs = np.where(img > 0)
-        if len(xs) == 0:
-            return [], None
-        i = int(np.argmin((xs - start_pt[0])**2 + (ys - start_pt[1])**2))
-        sx, sy = int(xs[i]), int(ys[i])
-
-    chemin = [(sx, sy)]
-    visited = {(sx, sy)}
-
-    for step in range(max_steps):
-        cx, cy = chemin[-1]
-
-        hit = reached_state(cx, cy, states, step,
-                            origin_dest_index, min_steps_before_return)
-        if hit is not None:
-            return chemin, hit
-
-        nxt = best_neighbor(cx, cy, img, visited, direction)
-        if nxt is None:
-            return chemin, None  # cul-de-sac
-
-        visited.add(nxt)
-        chemin.append(nxt)
-
-        rx, ry = chemin[max(0, len(chemin) - smoothing_window)]
-        dx, dy = nxt[0]-rx, nxt[1]-ry
-        n = (dx*dx + dy*dy)**0.5
-        if n:
-            direction = (dx/n, dy/n)
-
-    return chemin, None
-
 def find_state_in_direction(origin, direction, states, exclude=None,
                             cos_min=0.5, max_distance=None):
     """Etat le plus proche dans le cone defini par direction (fallback)."""
