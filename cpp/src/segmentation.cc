@@ -198,13 +198,6 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
         4.0 * CV_PI * component_area / (perimeter * perimeter);
     if (circularity > 0.98)
       continue;
-    std::cerr << "comp " << i << ": aire=" << component_area << " bbox=(" << bx
-              << "," << by << "," << bw << "," << bh << ")"
-              << " bord="
-              << (bx == 0 || by == 0 || bx + bw == image_width ||
-                  by + bh == image_height)
-              << "perimeter" << perimeter << "contours" << contours.empty()
-              << "circularity" << (circularity > 0.98) << "\n";
     Tip tip;
     tip.centroid =
         cv::Point2d(centroids.at<double>(i, 0), centroids.at<double>(i, 1));
@@ -213,16 +206,7 @@ std::vector<Tip> find_triangles(const cv::Mat &img_cleaned) {
     tip.pixels = component_pixels(labels_image, i, tip.bbox);
     tips.push_back(std::move(tip));
   }
-  std::cerr << "AVANT split: " << tips.size() << " tips\n";
-  for (const auto &t : tips)
-    std::cerr << "  aire=" << t.area << " centroid=(" << t.centroid.x << ","
-              << t.centroid.y << ")\n";
   split_merged_tips(tips);
-
-  std::cerr << "APRES split: " << tips.size() << " tips\n";
-  for (const auto &t : tips)
-    std::cerr << "  aire=" << t.area << " centroid=(" << t.centroid.x << ","
-              << t.centroid.y << ")\n";
   return tips;
 }
 
