@@ -12,6 +12,12 @@ Arborescence attendue :
 Usage :
     python batch_eval.py base_automata --letters knn_letters.bin --digits knn_digits.bin
     python batch_eval.py base_automata --failures failures.json --csv scores.csv
+
+    # sauvegarder aussi les tables predites (miroir du corpus)
+    python batch_eval.py base_automata --out pred_py
+
+    # scorer des tables deja produites (ex. par le batch C++), sans pipeline
+    python batch_eval.py base_automata --pred pred_cpp
 """
 
 import argparse
@@ -37,10 +43,13 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
 
-def evaluate_one(image_path, ref_path, classifier, digit_classifier=None):
+def evaluate_one(image_path, ref_path, classifier, digit_classifier=None,
+                 out_path=None):
     """
     Reconstruit une table depuis une image et la compare a sa reference.
     Le chemin de l'image est toujours conserve dans le rapport (pour debug).
+    Si out_path est fourni, la table predite y est aussi ecrite (meme
+    contrat que le batch C++ : pas de fichier en cas d'erreur).
     """
     try:
         result = segment_automaton(image_path, classifier=classifier,
@@ -49,7 +58,32 @@ def evaluate_one(image_path, ref_path, classifier, digit_classifier=None):
     except Exception as exc:
         return {"error": str(exc), "path": image_path}
 
+    if out_path is not None:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(table_str)
+
     predicted = parse_table(table_str, is_path=False)
+    reference = parse_table(ref_path)
+    report = compare(reference, predicted)
+    report["path"] = image_path
+    return report
+
+
+def evaluate_pred(pred_path, ref_path, image_path):
+    """
+    Compare une table predite deja sur disque (ex. sortie du batch C++)
+    a sa reference. Une table absente ou illisible est un echec dur,
+    comme une exception de la pipeline en mode direct.
+    """
+    try:
+        predicted = parse_table(pred_path)
+    except FileNotFoundError:
+        return {"error": f"table predite absente : {pred_path}",
+                "path": image_path}
+    except Exception as exc:
+        return {"error": str(exc), "path": image_path}
+
     reference = parse_table(ref_path)
     report = compare(reference, predicted)
     report["path"] = image_path
@@ -149,11 +183,18 @@ def collect_failures(reports, global_threshold=0.9):
 
 def run_batch(corpus_dir, classifier, digit_classifier=None,
               global_threshold=0.9,
-              levels=("simple_dfa", "medium_dfa", "hard_dfa")):
+              levels=("simple_dfa", "medium_dfa", "hard_dfa"),
+              pred_dir=None, out_dir=None):
     """
     Evalue chaque niveau. Retourne :
         stats    : {level: stats_agregees}
         failures : {level: {"hard": [...], "soft": [...]}}
+
+    Deux modes :
+        pred_dir : scoring seul, lit les tables predites dans pred_dir
+                   (arborescence miroir du corpus, ex. sortie du batch C++) ;
+        sinon    : inference via la pipeline, avec ecriture des tables
+                   predites dans out_dir si fourni.
     """
     stats = {}
     failures = {}
@@ -169,8 +210,16 @@ def run_batch(corpus_dir, classifier, digit_classifier=None,
             ref_path = os.path.splitext(img_path)[0] + ".txt"
             if not os.path.exists(ref_path):
                 continue
-            reports.append(evaluate_one(img_path, ref_path, classifier,
-                                        digit_classifier))
+            table_name = os.path.splitext(os.path.basename(img_path))[0] + ".txt"
+            if pred_dir is not None:
+                pred_path = os.path.join(pred_dir, level, table_name)
+                reports.append(evaluate_pred(pred_path, ref_path, img_path))
+            else:
+                out_path = (os.path.join(out_dir, level, table_name)
+                            if out_dir is not None else None)
+                reports.append(evaluate_one(img_path, ref_path, classifier,
+                                            digit_classifier,
+                                            out_path=out_path))
 
         stats[level] = aggregate(reports)
         hard, soft = collect_failures(reports, global_threshold)
@@ -248,21 +297,31 @@ def main():
                         help="exporte aussi les scores agreges en CSV")
     parser.add_argument("--threshold", type=float, default=0.9,
                         help="seuil global_aligned sous lequel un cas est un echec mou")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--pred", default=None,
+                      help="score des tables deja predites (arborescence "
+                           "miroir du corpus, ex. sortie du batch C++), "
+                           "sans executer la pipeline")
+    mode.add_argument("--out", default=None,
+                      help="ecrit aussi les tables predites dans ce dossier "
+                           "(meme format que le batch C++)")
     args = parser.parse_args()
 
     classifier = None
     digit_classifier = None
-    try:
-        classifier = load_classifier(args.letters)
-    except FileNotFoundError:
-        print(f"[!] modele {args.letters} absent : evaluation structurelle seule.")
-    try:
-        digit_classifier = load_classifier(args.digits)
-    except FileNotFoundError:
-        print(f"[!] modele {args.digits} absent : noms d'etats non reconnus.")
+    if args.pred is None:
+        try:
+            classifier = load_classifier(args.letters)
+        except FileNotFoundError:
+            print(f"[!] modele {args.letters} absent : evaluation structurelle seule.")
+        try:
+            digit_classifier = load_classifier(args.digits)
+        except FileNotFoundError:
+            print(f"[!] modele {args.digits} absent : noms d'etats non reconnus.")
 
     stats, failures = run_batch(args.corpus, classifier, digit_classifier,
-                                global_threshold=args.threshold)
+                                global_threshold=args.threshold,
+                                pred_dir=args.pred, out_dir=args.out)
     print_table(stats)
     save_failures(failures, args.failures)
     if args.csv:

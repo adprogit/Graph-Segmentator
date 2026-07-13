@@ -37,6 +37,16 @@ uv run src/main.py image.png         # analyser une image
 uv run src/batch_eval.py ../data/base_automata/   # scores sur le corpus
 ```
 
+L'évaluation et l'inférence sont séparables : `--out dossier/` sauvegarde
+aussi les tables prédites (une arborescence `.txt` en miroir du corpus),
+et `--pred dossier/` calcule les scores à partir de tables déjà produites,
+sans relancer l'analyse. C'est ainsi qu'on évalue la version C++ :
+
+```bash
+./cpp/build/pyplus --batch data/base_automata --out predites/
+cd python && uv run src/batch_eval.py ../data/base_automata --pred ../predites/
+```
+
 ## C++
 
 Dépendance : OpenCV (`brew install opencv`).
